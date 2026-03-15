@@ -16,16 +16,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
 
-      - name: Install build tools
-        run: pip install build hatchling
-
       - name: Build wheel and sdist
-        run: python -m build
+        run: uv build
 
       - name: Verify build artifacts
         run: ls -lh dist/

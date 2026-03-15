@@ -19,13 +19,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
 
       - name: Install Ruff
-        run: pip install ruff
+        run: uv tool install ruff
 
       - name: Run Ruff linter
         run: ruff check src/ tests/
@@ -43,16 +43,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e ".[all]" pytest pytest-asyncio pytest-cov
+        run: uv pip install -e ".[all]" pytest pytest-asyncio pytest-cov
 
       - name: Run tests
-        run: pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
+        run: uv run pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -69,16 +69,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
 
-      - name: Install build tools
-        run: pip install build hatchling
-
       - name: Build wheel and sdist
-        run: python -m build
+        run: uv build
 
       - name: Verify build artifacts
         run: ls -lh dist/
@@ -90,19 +87,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
 
-      - name: Install security tools
-        run: pip install bandit pip-audit
+      - name: Install project dependencies and security tools
+        run: uv pip install -e ".[all]" bandit pip-audit
 
       - name: Run Bandit SAST scan
-        run: bandit -r src/ -ll -ii
-
-      - name: Install project dependencies for pip-audit
-        run: pip install -e ".[all]"
+        run: uv run bandit -r src/ -ll -ii
 
       - name: Run pip-audit dependency vulnerability scan
-        run: pip-audit
+        run: uv run pip-audit
