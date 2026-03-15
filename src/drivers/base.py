@@ -1,0 +1,103 @@
+"""Abstract base class for database engine drivers."""
+
+from abc import ABC, abstractmethod
+from typing import Any, List, Dict, Optional, Tuple
+
+
+class BaseEngine(ABC):
+    """Abstract base class that all database drivers must implement.
+
+    This ensures a consistent interface across all database engines.
+    All methods must be async to support non-blocking UI operations.
+    """
+
+    @abstractmethod
+    async def connect(self, **kwargs) -> None:
+        """Establish a connection to the database.
+
+        Args:
+            **kwargs: Connection parameters specific to the database engine.
+
+        Raises:
+            ConnectionError: If the connection fails.
+        """
+        pass
+
+    @abstractmethod
+    async def execute(self, query: str, params: Optional[Tuple] = None) -> List[Tuple[Any, ...]]:
+        """Execute a SQL query and return the results.
+
+        Args:
+            query: The SQL query to execute.
+            params: Optional parameters for parameterized queries.
+
+        Returns:
+            List of tuples representing the query results.
+
+        Raises:
+            RuntimeError: If not connected to the database.
+            Exception: For query execution errors.
+        """
+        pass
+
+    @abstractmethod
+    async def get_schema(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Retrieve the database schema with lazy loading support.
+
+        Returns:
+            Dictionary mapping schema names to lists of table information.
+            Each table dict contains 'name' and 'columns' keys.
+
+        Example:
+            {
+                'public': [
+                    {
+                        'name': 'users',
+                        'columns': [
+                            {'name': 'id', 'type': 'INTEGER'},
+                            {'name': 'email', 'type': 'VARCHAR'}
+                        ]
+                    }
+                ]
+            }
+        """
+        pass
+
+    @abstractmethod
+    async def get_explain_plan(self, query: str) -> str:
+        """Get the execution plan for a query.
+
+        Args:
+            query: The SQL query to analyze.
+
+        Returns:
+            Execution plan as a string (JSON, XML, or text format).
+        """
+        pass
+
+    @abstractmethod
+    async def get_columns(self, schema: str, table: str) -> List[Dict[str, Any]]:
+        """Get columns for a specific table (for lazy loading).
+
+        Args:
+            schema: The schema name.
+            table: The table name.
+
+        Returns:
+            List of column dictionaries with 'name' and 'type' keys.
+        """
+        pass
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Close the database connection and clean up resources."""
+        pass
+
+    @abstractmethod
+    def is_connected(self) -> bool:
+        """Check if the database connection is active.
+
+        Returns:
+            True if connected, False otherwise.
+        """
+        pass
