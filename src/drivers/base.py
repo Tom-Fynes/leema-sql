@@ -1,7 +1,17 @@
 """Abstract base class for database engine drivers."""
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Any, List, Dict, Optional, Tuple
+
+
+@dataclass
+class QueryResult:
+    """Result of a SQL query execution."""
+    columns: List[str]
+    rows: List[Tuple[Any, ...]]
+    row_count: int
+    execution_time: float
 
 
 class BaseEngine(ABC):
@@ -24,7 +34,7 @@ class BaseEngine(ABC):
         pass
 
     @abstractmethod
-    async def execute(self, query: str, params: Optional[Tuple] = None) -> List[Tuple[Any, ...]]:
+    async def execute(self, query: str, params: Optional[Tuple] = None) -> QueryResult:
         """Execute a SQL query and return the results.
 
         Args:
@@ -32,7 +42,7 @@ class BaseEngine(ABC):
             params: Optional parameters for parameterized queries.
 
         Returns:
-            List of tuples representing the query results.
+            QueryResult with columns, rows, row count, and execution time.
 
         Raises:
             RuntimeError: If not connected to the database.
@@ -76,15 +86,50 @@ class BaseEngine(ABC):
         pass
 
     @abstractmethod
-    async def get_columns(self, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
         """Get columns for a specific table (for lazy loading).
 
         Args:
+            database: The database name.
             schema: The schema name.
             table: The table name.
 
         Returns:
             List of column dictionaries with 'name' and 'type' keys.
+        """
+        pass
+
+    @abstractmethod
+    async def get_databases(self) -> List[str]:
+        """Get list of available databases.
+
+        Returns:
+            List of database names.
+        """
+        pass
+
+    @abstractmethod
+    async def get_schemas(self, database: str) -> List[str]:
+        """Get list of schemas in a database.
+
+        Args:
+            database: The database name.
+
+        Returns:
+            List of schema names.
+        """
+        pass
+
+    @abstractmethod
+    async def get_tables(self, database: str, schema: str) -> List[str]:
+        """Get list of tables in a schema.
+
+        Args:
+            database: The database name.
+            schema: The schema name.
+
+        Returns:
+            List of table names.
         """
         pass
 

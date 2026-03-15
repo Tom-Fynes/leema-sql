@@ -8,8 +8,9 @@ except ImportError:
         "pymssql is not installed. Install with: pip install 'leema-sql[mssql]'")
 
 from typing import List, Dict, Any, Optional, Tuple
-from src.drivers.base import BaseEngine
+from src.drivers.base import BaseEngine, QueryResult
 import asyncio
+import time
 
 
 class MSSQLEngine(BaseEngine):
@@ -28,7 +29,7 @@ class MSSQLEngine(BaseEngine):
         host: str,
         port: int,
         database: str,
-        user: Optional[str] = None,
+        username: Optional[str] = None,
         password: Optional[str] = None,
         use_windows_auth: bool = False,
         **kwargs
@@ -39,7 +40,7 @@ class MSSQLEngine(BaseEngine):
             host: Database host.
             port: Database port (default 1433).
             database: Database name.
-            user: Username (not needed for Windows auth).
+            username: Username (not needed for Windows auth).
             password: Password (not needed for Windows auth).
             use_windows_auth: Use Windows authentication instead of SQL auth.
             **kwargs: Additional connection parameters (tds_version, charset, etc.).
@@ -55,10 +56,10 @@ class MSSQLEngine(BaseEngine):
             # Windows authentication - don't pass user/password
             self.connection_params['trusted'] = True
         else:
-            if not user or not password:
+            if not username or not password:
                 raise ValueError(
                     "Username and password required for SQL authentication")
-            self.connection_params['user'] = user
+            self.connection_params['user'] = username
             self.connection_params['password'] = password
 
         self.connection: Optional[pymssql.Connection] = None
@@ -78,13 +79,14 @@ class MSSQLEngine(BaseEngine):
             raise ConnectionError(
                 f"Unexpected error connecting to SQL Server: {e}")
 
-    async def execute(self, query: str, params: Optional[Tuple] = None) -> List[Tuple[Any, ...]]:
+    async def execute(self, query: str, params: Optional[Tuple] = None) -> QueryResult:
         """Execute a SQL query."""
         if not self.connection:
             raise RuntimeError(
                 "Not connected to database. Call connect() first.")
 
         try:
+            start_time = time.time()
             cursor = self.connection.cursor()
 
             # Execute in thread pool to avoid blocking
@@ -92,13 +94,21 @@ class MSSQLEngine(BaseEngine):
 
             # Fetch results if this was a SELECT
             try:
-                results = await asyncio.to_thread(cursor.fetchall)
+                rows = await asyncio.to_thread(cursor.fetchall)
+                columns = [desc[0] for desc in cursor.description] if cursor.description else []
             except Exception:
-                # Not a SELECT query, return empty list
-                results = []
+                # Not a SELECT query, return empty result
+                rows = []
+                columns = []
 
             cursor.close()
-            return results
+            execution_time = time.time() - start_time
+            return QueryResult(
+                columns=columns,
+                rows=list(rows),
+                row_count=len(rows),
+                execution_time=execution_time,
+            )
         except MSSQLError as e:
             raise Exception(f"Query execution failed: {e}")
         except Exception as e:
@@ -140,7 +150,64 @@ class MSSQLEngine(BaseEngine):
         except Exception as e:
             raise Exception(f"Unexpected error retrieving schema: {e}")
 
-    async def get_columns(self, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_databases(self) -> List[str]:
+        """Get list of available databases."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            cursor = self.connection.cursor()
+            await asyncio.to_thread(
+                cursor.execute,
+                "SELECT name FROM sys.databases WHERE state_desc = 'ONLINE' ORDER BY name"
+            )
+            rows = await asyncio.to_thread(cursor.fetchall)
+            cursor.close()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve databases: {e}")
+
+    async def get_schemas(self, database: str) -> List[str]:
+        """Get list of schemas in the current database."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            cursor = self.connection.cursor()
+            await asyncio.to_thread(
+                cursor.execute,
+                "SELECT name FROM sys.schemas ORDER BY name"
+            )
+            rows = await asyncio.to_thread(cursor.fetchall)
+            cursor.close()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve schemas: {e}")
+
+    async def get_tables(self, database: str, schema: str) -> List[str]:
+        """Get list of tables in a schema."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            cursor = self.connection.cursor()
+            await asyncio.to_thread(
+                cursor.execute,
+                "SELECT t.name FROM sys.tables t "
+                "JOIN sys.schemas s ON t.schema_id = s.schema_id "
+                "WHERE s.name = %s ORDER BY t.name",
+                (schema,)
+            )
+            rows = await asyncio.to_thread(cursor.fetchall)
+            cursor.close()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve tables: {e}")
+
+    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
         """Get columns for a specific table."""
         if not self.connection:
             raise RuntimeError(

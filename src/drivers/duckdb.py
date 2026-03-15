@@ -2,8 +2,9 @@
 
 import duckdb
 import json
+import time
 from typing import List, Dict, Any, Optional, Tuple
-from src.drivers.base import BaseEngine
+from src.drivers.base import BaseEngine, QueryResult
 
 
 class DuckDBEngine(BaseEngine):
@@ -12,11 +13,13 @@ class DuckDBEngine(BaseEngine):
     DuckDB is synchronous but we wrap it in async methods for consistency.
     """
 
-    def __init__(self, database: str = ':memory:'):
+    def __init__(self, database: str = ':memory:', **kwargs):
         """Initialize the DuckDB engine.
 
         Args:
             database: Path to database file or ':memory:' for in-memory database.
+            **kwargs: Ignored extra keyword arguments (e.g., host, port, username)
+                      accepted for a uniform construction interface.
         """
         self.database = database
         self.connection: Optional[duckdb.DuckDBPyConnection] = None
@@ -24,23 +27,32 @@ class DuckDBEngine(BaseEngine):
     async def connect(self, **kwargs) -> None:
         """Establish a connection to DuckDB."""
         try:
-            self.connection = duckdb.connect(self.database, **kwargs)
+            self.connection = duckdb.connect(self.database)
         except Exception as e:
             raise ConnectionError(f"Failed to connect to DuckDB: {e}")
 
-    async def execute(self, query: str, params: Optional[Tuple] = None) -> List[Tuple[Any, ...]]:
+    async def execute(self, query: str, params: Optional[Tuple] = None) -> QueryResult:
         """Execute a SQL query."""
         if not self.connection:
             raise RuntimeError(
                 "Not connected to database. Call connect() first.")
 
         try:
+            start_time = time.time()
             if params:
-                result = self.connection.execute(query, params)
+                result = self.connection.execute(query, list(params))
             else:
                 result = self.connection.execute(query)
 
-            return result.fetchall()
+            rows = result.fetchall()
+            columns = [desc[0] for desc in result.description] if result.description else []
+            execution_time = time.time() - start_time
+            return QueryResult(
+                columns=columns,
+                rows=rows,
+                row_count=len(rows),
+                execution_time=execution_time,
+            )
         except Exception as e:
             raise Exception(f"Query execution failed: {e}")
 
@@ -72,7 +84,53 @@ class DuckDBEngine(BaseEngine):
         except Exception as e:
             raise Exception(f"Failed to retrieve schema: {e}")
 
-    async def get_columns(self, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_databases(self) -> List[str]:
+        """Get list of available databases (catalogs in DuckDB)."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            rows = self.connection.execute(
+                "SELECT DISTINCT catalog_name FROM information_schema.schemata ORDER BY catalog_name"
+            ).fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve databases: {e}")
+
+    async def get_schemas(self, database: str) -> List[str]:
+        """Get list of schemas in DuckDB."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            rows = self.connection.execute(
+                "SELECT schema_name FROM information_schema.schemata "
+                "WHERE schema_name NOT IN ('information_schema', 'pg_catalog') "
+                "ORDER BY schema_name"
+            ).fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve schemas: {e}")
+
+    async def get_tables(self, database: str, schema: str) -> List[str]:
+        """Get list of tables in a schema."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            rows = self.connection.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = ? ORDER BY table_name",
+                [schema]
+            ).fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve tables: {e}")
+
+    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
         """Get columns for a specific table."""
         if not self.connection:
             raise RuntimeError(
@@ -83,7 +141,7 @@ class DuckDBEngine(BaseEngine):
                 "SELECT column_name, data_type FROM information_schema.columns "
                 "WHERE table_schema = ? AND table_name = ? "
                 "ORDER BY ordinal_position",
-                (schema, table)
+                [schema, table]
             ).fetchall()
 
             return [{'name': col[0], 'type': col[1]} for col in columns_result]
@@ -111,3 +169,4 @@ class DuckDBEngine(BaseEngine):
     def is_connected(self) -> bool:
         """Check if connected to DuckDB."""
         return self.connection is not None
+

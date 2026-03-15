@@ -1,20 +1,13 @@
 """Tests for database drivers."""
 
 import pytest
+import pytest_asyncio
 import asyncio
-from src.drivers.base import BaseEngine
+from src.drivers.base import BaseEngine, QueryResult
 from src.drivers.duckdb import DuckDBEngine
 
 
-@pytest.fixture
-def event_loop():
-    """Create an event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture
+@pytest_asyncio.fixture
 async def duckdb_driver():
     """Create a DuckDB driver instance."""
     driver = DuckDBEngine(':memory:')
@@ -36,20 +29,22 @@ async def test_duckdb_connect():
 
 @pytest.mark.asyncio
 async def test_duckdb_execute(duckdb_driver):
-    """Test DuckDB query execution."""
+    """Test DuckDB query execution returns a QueryResult."""
     result = await duckdb_driver.execute("SELECT 1 as test")
-    assert result is not None
-    assert len(result) == 1
-    assert result[0][0] == 1
+    assert isinstance(result, QueryResult)
+    assert result.row_count == 1
+    assert result.columns == ['test']
+    assert result.rows[0][0] == 1
+    assert result.execution_time >= 0
 
 
 @pytest.mark.asyncio
 async def test_duckdb_execute_with_params(duckdb_driver):
     """Test DuckDB query execution with parameters."""
     result = await duckdb_driver.execute("SELECT ? as value", (42,))
-    assert result is not None
-    assert len(result) == 1
-    assert result[0][0] == 42
+    assert isinstance(result, QueryResult)
+    assert result.row_count == 1
+    assert result.rows[0][0] == 42
 
 
 @pytest.mark.asyncio
@@ -63,10 +58,35 @@ async def test_duckdb_get_schema(duckdb_driver):
 
 
 @pytest.mark.asyncio
+async def test_duckdb_get_databases(duckdb_driver):
+    """Test DuckDB database (catalog) listing."""
+    databases = await duckdb_driver.get_databases()
+    assert isinstance(databases, list)
+    assert len(databases) > 0
+
+
+@pytest.mark.asyncio
+async def test_duckdb_get_schemas(duckdb_driver):
+    """Test DuckDB schema listing."""
+    schemas = await duckdb_driver.get_schemas('memory')
+    assert isinstance(schemas, list)
+    assert 'main' in schemas
+
+
+@pytest.mark.asyncio
+async def test_duckdb_get_tables(duckdb_driver):
+    """Test DuckDB table listing."""
+    await duckdb_driver.execute("CREATE TABLE test_table2 (id INTEGER)")
+    tables = await duckdb_driver.get_tables('memory', 'main')
+    assert isinstance(tables, list)
+    assert 'test_table2' in tables
+
+
+@pytest.mark.asyncio
 async def test_duckdb_get_columns(duckdb_driver):
-    """Test DuckDB column retrieval."""
+    """Test DuckDB column retrieval with 3-arg signature."""
     await duckdb_driver.execute("CREATE TABLE test_table (id INTEGER, name VARCHAR, age INTEGER)")
-    columns = await duckdb_driver.get_columns('main', 'test_table')
+    columns = await duckdb_driver.get_columns('memory', 'main', 'test_table')
     assert len(columns) == 3
     assert columns[0]['name'] == 'id'
     assert columns[1]['name'] == 'name'
@@ -89,3 +109,4 @@ async def test_duckdb_not_connected_error():
 
     with pytest.raises(RuntimeError, match="Not connected"):
         await driver.execute("SELECT 1")
+

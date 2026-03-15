@@ -249,7 +249,7 @@ class LeemaApp(App):
                 self._update_results_status, "Generating execution plan...")
 
             # Get execution plan
-            plan_text = await self._current_engine.explain(sql)
+            plan_text = await self._current_engine.get_explain_plan(sql)
 
             # Show plan in viewer
             self.call_from_thread(
@@ -328,9 +328,14 @@ class LeemaApp(App):
     def action_quit(self) -> None:
         """Quit the application."""
         if self._current_engine:
-            # Disconnect gracefully
+            # Disconnect gracefully using the async close method
             try:
-                self._current_engine.disconnect()
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._current_engine.close())
+                else:
+                    loop.run_until_complete(self._current_engine.close())
             except Exception:
                 pass
         self.exit()

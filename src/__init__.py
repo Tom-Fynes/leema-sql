@@ -3,6 +3,4 @@
 __version__ = "1.0.0"
 __author__ = "Tom Fynes"
 
-from src.app import LeemaApp
-
-__all__ = ["LeemaApp", "__version__", "__author__"]
+__all__ = ["__version__", "__author__"]

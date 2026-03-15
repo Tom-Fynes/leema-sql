@@ -1,4 +1,5 @@
 """The Workspace - SQL editor with syntax highlighting and formatting."""
+from typing import Optional
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import TextArea

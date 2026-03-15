@@ -33,7 +33,7 @@ class ExecutionPlanViewer(Vertical):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.tree: Optional[Tree] = None
+        self._plan_tree: Optional[Tree] = None
         self.header_widget: Optional[Static] = None
 
     def compose(self) -> ComposeResult:
@@ -41,18 +41,18 @@ class ExecutionPlanViewer(Vertical):
         self.header_widget = Static("🔍 Execution Plan", id="plan-header")
         yield self.header_widget
 
-        self.tree = Tree("Query Plan", id="plan-tree")
-        self.tree.show_root = True
-        self.tree.show_guides = True
-        yield self.tree
+        self._plan_tree = Tree("Query Plan", id="plan-tree")
+        self._plan_tree.show_root = True
+        self._plan_tree.show_guides = True
+        yield self._plan_tree
 
     def show_plan(self, plan_text: str, engine_type: str) -> None:
         """Parse and display execution plan."""
-        if not self.tree:
+        if not self._plan_tree:
             return
 
-        self.tree.clear()
-        self.tree.root.set_label(f"🔍 {engine_type.upper()} Execution Plan")
+        self._plan_tree.clear()
+        self._plan_tree.root.set_label(f"🔍 {engine_type.upper()} Execution Plan")
 
         try:
             if engine_type == "postgres":
@@ -65,7 +65,7 @@ class ExecutionPlanViewer(Vertical):
                 # Generic text plan
                 self._parse_generic_plan(plan_text)
         except Exception as e:
-            self.tree.root.add_leaf(f"❌ Parse error: {str(e)}")
+            self._plan_tree.root.add_leaf(f"❌ Parse error: {str(e)}")
 
     def _parse_postgres_plan(self, plan_text: str) -> None:
         """Parse PostgreSQL JSON explain output."""
@@ -75,7 +75,7 @@ class ExecutionPlanViewer(Vertical):
                 plan_data = plan_data[0]
 
             if "Plan" in plan_data:
-                self._add_postgres_node(self.tree.root, plan_data["Plan"])
+                self._add_postgres_node(self._plan_tree.root, plan_data["Plan"])
         except json.JSONDecodeError:
             # Fallback to text mode
             self._parse_generic_plan(plan_text)
@@ -106,12 +106,12 @@ class ExecutionPlanViewer(Vertical):
         lines = plan_text.split('\n')
         for line in lines[:50]:  # Limit to first 50 lines
             if line.strip():
-                self.tree.root.add_leaf(line.strip())
+                self._plan_tree.root.add_leaf(line.strip())
 
     def _parse_duckdb_plan(self, plan_text: str) -> None:
         """Parse DuckDB execution plan."""
         lines = plan_text.split('\n')
-        current_node = self.tree.root
+        current_node = self._plan_tree.root
 
         for line in lines:
             if not line.strip():
@@ -122,7 +122,7 @@ class ExecutionPlanViewer(Vertical):
 
             # Simple tree construction based on indentation
             if indent_level == 0:
-                current_node = self.tree.root.add(line.strip())
+                current_node = self._plan_tree.root.add(line.strip())
             else:
                 current_node.add_leaf(line.strip())
 
@@ -131,10 +131,10 @@ class ExecutionPlanViewer(Vertical):
         lines = plan_text.split('\n')
         for line in lines:
             if line.strip():
-                self.tree.root.add_leaf(line.strip())
+                self._plan_tree.root.add_leaf(line.strip())
 
     def clear(self) -> None:
         """Clear the plan view."""
-        if self.tree:
-            self.tree.clear()
-            self.tree.root.set_label("Query Plan")
+        if self._plan_tree:
+            self._plan_tree.clear()
+            self._plan_tree.root.set_label("Query Plan")
