@@ -44,3 +44,39 @@ def test_validate_cert_path(tmp_path):
     assert not SecurityManager.validate_cert_path("/nonexistent/path/cert.pem")
     assert not SecurityManager.validate_cert_path("")
 
+
+# --- Bug fix tests ---
+
+def test_set_password_uses_composite_key():
+    """Bug fix: set_password(engine, host, username, password) stores under a composite key."""
+    with patch("keyring.set_password") as mock_set:
+        SecurityManager.set_password("postgres", "db.example.com", "alice", "s3cr3t")
+        expected_key = "postgres:db.example.com:alice"
+        mock_set.assert_called_once_with(
+            SecurityManager.KEYRING_SERVICE, expected_key, "s3cr3t"
+        )
+
+
+def test_get_password_uses_composite_key():
+    """Bug fix: get_password(engine, host, username) retrieves by composite key."""
+    with patch("keyring.get_password", return_value="s3cr3t") as mock_get:
+        result = SecurityManager.get_password("mysql", "localhost", "bob")
+        expected_key = "mysql:localhost:bob"
+        mock_get.assert_called_once_with(
+            SecurityManager.KEYRING_SERVICE, expected_key
+        )
+        assert result == "s3cr3t"
+
+
+def test_get_password_returns_none_when_not_found():
+    """Bug fix: get_password returns None when no password is stored."""
+    with patch("keyring.get_password", return_value=None):
+        result = SecurityManager.get_password("postgres", "localhost", "nobody")
+        assert result is None
+
+
+def test_make_key_format():
+    """Test that the composite key is formatted correctly."""
+    key = SecurityManager._make_key("duckdb", "localhost", "admin")
+    assert key == "duckdb:localhost:admin"
+

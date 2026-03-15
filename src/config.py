@@ -36,7 +36,9 @@ class ConnectionProfile:
         if not self.host:
             errors.append("Host is required")
 
-        if not isinstance(self.port, int) or self.port <= 0 or self.port > 65535:
+        if not isinstance(self.port, int) or self.port < 0 or self.port > 65535:
+            errors.append(f"Invalid port number: {self.port}")
+        elif self.port == 0 and self.engine != "duckdb":
             errors.append(f"Invalid port number: {self.port}")
 
         if not self.database and self.engine != "duckdb":

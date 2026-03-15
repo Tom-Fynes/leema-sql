@@ -173,7 +173,10 @@ class BurrowSidebar(VerticalScroll):
             for col in columns:
                 col_name = col.get("name", "")
                 col_type = col.get("type", "")
-                nullable = " NULL" if col.get("nullable") else " NOT NULL"
+                if "nullable" in col:
+                    nullable = " NULL" if col["nullable"] else " NOT NULL"
+                else:
+                    nullable = ""
                 node.add_leaf(f"🔹 {col_name} ({col_type}){nullable}")
         except Exception as e:
             node.add_leaf(f"❌ Error: {str(e)}")

@@ -50,4 +50,13 @@ def get_engine(engine_type: str) -> Type[BaseEngine]:
     return DRIVERS[engine_type]
 
 
-__all__ = ["BaseEngine", "QueryResult", "DRIVERS", "get_engine"]
+def get_available_drivers() -> Dict[str, Type[BaseEngine]]:
+    """Return a copy of the registered driver map.
+
+    Returns:
+        Dictionary mapping engine-type names to their driver classes.
+    """
+    return dict(DRIVERS)
+
+
+__all__ = ["BaseEngine", "QueryResult", "DRIVERS", "get_engine", "get_available_drivers"]

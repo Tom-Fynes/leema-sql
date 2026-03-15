@@ -104,7 +104,7 @@ class WorkspaceEditor(VerticalScroll):
             new_line = f"-- {current_line}"
 
         # Replace line (this is simplified - actual implementation needs cursor management)
-        self.editor.delete_line(cursor_location[0])
+        self.editor.action_delete_line()
         self.editor.insert(new_line, cursor_location)
 
     def insert_text(self, text: str) -> None:
