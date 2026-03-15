@@ -40,6 +40,7 @@ def test_app_explain_mode_toggle(app):
 
 # --- Bug fix tests ---
 
+
 def test_duckdb_profile_port_zero_is_valid():
     """Bug fix: DuckDB connection profiles with port=0 must pass validation."""
     profile = ConnectionProfile(

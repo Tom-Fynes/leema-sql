@@ -32,8 +32,7 @@ class SecurityManager:
             connection_name: The connection profile name.
             password: The password to store.
         """
-        keyring.set_password(SecurityManager.KEYRING_SERVICE,
-                             connection_name, password)
+        keyring.set_password(SecurityManager.KEYRING_SERVICE, connection_name, password)
 
     @staticmethod
     def retrieve_password(connection_name: str) -> Optional[str]:
@@ -83,8 +82,7 @@ class SecurityManager:
             connection_name: The connection profile name.
         """
         try:
-            keyring.delete_password(
-                SecurityManager.KEYRING_SERVICE, connection_name)
+            keyring.delete_password(SecurityManager.KEYRING_SERVICE, connection_name)
         except keyring.errors.PasswordDeleteError:
             pass  # Password doesn't exist
 

@@ -1,4 +1,5 @@
 """Command-line interface for Leema SQL IDE."""
+
 import typer
 from pathlib import Path
 from typing import Optional
@@ -45,15 +46,15 @@ def run(
         # Set default profile if specified
         if profile:
             if profile not in leema_config.profiles:
-                console.print(
-                    f"[red]Error: Profile '{profile}' not found[/red]")
+                console.print(f"[red]Error: Profile '{profile}' not found[/red]")
                 raise typer.Exit(1)
             leema_config.default_profile = profile
 
         # Check if we have any profiles
         if not leema_config.profiles:
             console.print(
-                "[yellow]No connection profiles found. Run 'leema configure' first.[/yellow]")
+                "[yellow]No connection profiles found. Run 'leema configure' first.[/yellow]"
+            )
             if Confirm.ask("Would you like to configure now?"):
                 configure(config)
                 return
@@ -82,8 +83,7 @@ def configure(
     ),
 ) -> None:
     """Interactive configuration wizard."""
-    console.print(
-        "\n[bold cyan]🔧 Leema SQL IDE Configuration Wizard[/bold cyan]\n")
+    console.print("\n[bold cyan]🔧 Leema SQL IDE Configuration Wizard[/bold cyan]\n")
 
     config_path = str(config) if config else None
 
@@ -91,7 +91,8 @@ def configure(
     try:
         leema_config = LeemaConfig.load(config_path)
         console.print(
-            f"[green]Loaded existing configuration from {leema_config.config_path}[/green]\n")
+            f"[green]Loaded existing configuration from {leema_config.config_path}[/green]\n"
+        )
     except FileNotFoundError:
         leema_config = LeemaConfig()
         console.print("[yellow]Creating new configuration[/yellow]\n")
@@ -107,8 +108,9 @@ def configure(
         console.print("6. Save and exit")
         console.print("7. Exit without saving")
 
-        choice = Prompt.ask("Choose an option", choices=[
-                            "1", "2", "3", "4", "5", "6", "7"])
+        choice = Prompt.ask(
+            "Choose an option", choices=["1", "2", "3", "4", "5", "6", "7"]
+        )
 
         if choice == "1":
             _add_profile_wizard(leema_config)
@@ -123,7 +125,8 @@ def configure(
         elif choice == "6":
             leema_config.save(config_path)
             console.print(
-                f"\n[green]✓ Configuration saved to {leema_config.config_path}[/green]")
+                f"\n[green]✓ Configuration saved to {leema_config.config_path}[/green]"
+            )
             break
         elif choice == "7":
             console.print("[yellow]Exiting without saving[/yellow]")
@@ -149,9 +152,7 @@ def _add_profile_wizard(config: LeemaConfig) -> None:
         return
 
     engine = Prompt.ask(
-        "Database engine",
-        choices=list(available_drivers.keys()),
-        default="postgres"
+        "Database engine", choices=list(available_drivers.keys()), default="postgres"
     )
 
     host = Prompt.ask("Host", default="localhost")
@@ -161,7 +162,8 @@ def _add_profile_wizard(config: LeemaConfig) -> None:
 
     # Password handling
     store_password = Confirm.ask(
-        "Store password securely in system keyring?", default=True)
+        "Store password securely in system keyring?", default=True
+    )
 
     password = None
     if store_password:
@@ -174,7 +176,7 @@ def _add_profile_wizard(config: LeemaConfig) -> None:
         ssl_config["sslmode"] = Prompt.ask(
             "SSL mode",
             choices=["require", "verify-ca", "verify-full"],
-            default="require"
+            default="require",
         )
 
     # Create profile
@@ -187,7 +189,7 @@ def _add_profile_wizard(config: LeemaConfig) -> None:
         username=username,
         password=None,  # Don't store in config
         ssl=use_ssl,
-        options=ssl_config
+        options=ssl_config,
     )
 
     config.profiles[name] = profile
@@ -196,8 +198,7 @@ def _add_profile_wizard(config: LeemaConfig) -> None:
     if store_password and password:
         security = SecurityManager()
         security.set_password(engine, host, username, password)
-        console.print(
-            "[green]✓ Password stored securely in system keyring[/green]")
+        console.print("[green]✓ Password stored securely in system keyring[/green]")
 
     console.print(f"\n[green]✓ Profile '{name}' added successfully[/green]")
 
@@ -215,8 +216,7 @@ def _edit_profile_wizard(config: LeemaConfig) -> None:
 
     _list_profiles(config)
 
-    name = Prompt.ask("Profile name to edit",
-                      choices=list(config.profiles.keys()))
+    name = Prompt.ask("Profile name to edit", choices=list(config.profiles.keys()))
     profile = config.profiles[name]
 
     console.print(f"\n[bold]Editing profile: {name}[/bold]")
@@ -231,8 +231,7 @@ def _edit_profile_wizard(config: LeemaConfig) -> None:
     if Confirm.ask("Update password?", default=False):
         password = Prompt.ask("New password", password=True)
         security = SecurityManager()
-        security.set_password(profile.engine, profile.host,
-                              profile.username, password)
+        security.set_password(profile.engine, profile.host, profile.username, password)
         console.print("[green]✓ Password updated[/green]")
 
     console.print(f"[green]✓ Profile '{name}' updated[/green]")
@@ -246,8 +245,7 @@ def _delete_profile_wizard(config: LeemaConfig) -> None:
 
     _list_profiles(config)
 
-    name = Prompt.ask("Profile name to delete",
-                      choices=list(config.profiles.keys()))
+    name = Prompt.ask("Profile name to delete", choices=list(config.profiles.keys()))
 
     if Confirm.ask(f"Delete profile '{name}'?", default=False):
         del config.profiles[name]
@@ -279,7 +277,7 @@ def _list_profiles(config: LeemaConfig) -> None:
             profile.engine,
             f"{profile.host}:{profile.port}",
             profile.database,
-            is_default
+            is_default,
         )
 
     console.print(table)
@@ -293,8 +291,7 @@ def _set_default_profile(config: LeemaConfig) -> None:
 
     _list_profiles(config)
 
-    name = Prompt.ask("Set default profile",
-                      choices=list(config.profiles.keys()))
+    name = Prompt.ask("Set default profile", choices=list(config.profiles.keys()))
     config.default_profile = name
     console.print(f"[green]✓ Default profile set to '{name}'[/green]")
 
@@ -331,8 +328,7 @@ def version() -> None:
     console.print("\n[bold cyan]Leema SQL IDE[/bold cyan]")
     console.print("Version: 1.0.0")
     console.print("Python: 3.12+")
-    console.print(
-        "\n[dim]A multi-engine TUI SQL development environment[/dim]\n")
+    console.print("\n[dim]A multi-engine TUI SQL development environment[/dim]\n")
 
 
 def main() -> None:

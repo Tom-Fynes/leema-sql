@@ -10,8 +10,10 @@ def test_store_and_retrieve_password():
     test_connection = "test_postgres_conn"
     test_password = "super_secret_password"
 
-    with patch("keyring.set_password") as mock_set, \
-         patch("keyring.get_password", return_value=test_password) as mock_get:
+    with (
+        patch("keyring.set_password") as mock_set,
+        patch("keyring.get_password", return_value=test_password) as mock_get,
+    ):
         manager.store_password(test_connection, test_password)
         mock_set.assert_called_once_with(
             SecurityManager.KEYRING_SERVICE, test_connection, test_password
@@ -46,6 +48,7 @@ def test_validate_cert_path(tmp_path):
 
 # --- Bug fix tests ---
 
+
 def test_set_password_uses_composite_key():
     """Bug fix: set_password(engine, host, username, password) stores under a composite key."""
     with patch("keyring.set_password") as mock_set:
@@ -61,9 +64,7 @@ def test_get_password_uses_composite_key():
     with patch("keyring.get_password", return_value="s3cr3t") as mock_get:
         result = SecurityManager.get_password("mysql", "localhost", "bob")
         expected_key = "mysql:localhost:bob"
-        mock_get.assert_called_once_with(
-            SecurityManager.KEYRING_SERVICE, expected_key
-        )
+        mock_get.assert_called_once_with(SecurityManager.KEYRING_SERVICE, expected_key)
         assert result == "s3cr3t"
 
 
@@ -78,4 +79,3 @@ def test_make_key_format():
     """Test that the composite key is formatted correctly."""
     key = SecurityManager._make_key("duckdb", "localhost", "admin")
     assert key == "duckdb:localhost:admin"
-

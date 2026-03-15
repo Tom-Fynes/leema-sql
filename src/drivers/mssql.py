@@ -5,7 +5,8 @@ try:
     from pymssql import Error as MSSQLError
 except ImportError:
     raise ImportError(
-        "pymssql is not installed. Install with: pip install 'leema-sql[mssql]'")
+        "pymssql is not installed. Install with: pip install 'leema-sql[mssql]'"
+    )
 
 from typing import List, Dict, Any, Optional, Tuple
 from src.drivers.base import BaseEngine, QueryResult
@@ -32,7 +33,7 @@ class MSSQLEngine(BaseEngine):
         username: Optional[str] = None,
         password: Optional[str] = None,
         use_windows_auth: bool = False,
-        **kwargs
+        **kwargs,
     ):
         """Initialize the SQL Server engine.
 
@@ -46,21 +47,22 @@ class MSSQLEngine(BaseEngine):
             **kwargs: Additional connection parameters (tds_version, charset, etc.).
         """
         self.connection_params = {
-            'server': host,
-            'port': port,
-            'database': database,
-            **kwargs
+            "server": host,
+            "port": port,
+            "database": database,
+            **kwargs,
         }
 
         if use_windows_auth:
             # Windows authentication - don't pass user/password
-            self.connection_params['trusted'] = True
+            self.connection_params["trusted"] = True
         else:
             if not username or not password:
                 raise ValueError(
-                    "Username and password required for SQL authentication")
-            self.connection_params['user'] = username
-            self.connection_params['password'] = password
+                    "Username and password required for SQL authentication"
+                )
+            self.connection_params["user"] = username
+            self.connection_params["password"] = password
 
         self.connection: Optional[pymssql.Connection] = None
 
@@ -69,21 +71,16 @@ class MSSQLEngine(BaseEngine):
         try:
             params = {**self.connection_params, **kwargs}
             # Run synchronous connect in thread pool
-            self.connection = await asyncio.to_thread(
-                pymssql.connect,
-                **params
-            )
+            self.connection = await asyncio.to_thread(pymssql.connect, **params)
         except MSSQLError as e:
             raise ConnectionError(f"Failed to connect to SQL Server: {e}")
         except Exception as e:
-            raise ConnectionError(
-                f"Unexpected error connecting to SQL Server: {e}")
+            raise ConnectionError(f"Unexpected error connecting to SQL Server: {e}")
 
     async def execute(self, query: str, params: Optional[Tuple] = None) -> QueryResult:
         """Execute a SQL query."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             start_time = time.time()
@@ -95,7 +92,11 @@ class MSSQLEngine(BaseEngine):
             # Fetch results if this was a SELECT
             try:
                 rows = await asyncio.to_thread(cursor.fetchall)
-                columns = [desc[0] for desc in cursor.description] if cursor.description else []
+                columns = (
+                    [desc[0] for desc in cursor.description]
+                    if cursor.description
+                    else []
+                )
             except Exception:
                 # Not a SELECT query, return empty result
                 rows = []
@@ -117,8 +118,7 @@ class MSSQLEngine(BaseEngine):
     async def get_schema(self) -> Dict[str, List[Dict[str, Any]]]:
         """Retrieve the SQL Server database schema."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         query = """
         SELECT 
@@ -139,10 +139,12 @@ class MSSQLEngine(BaseEngine):
                 if schema_name not in schema:
                     schema[schema_name] = []
 
-                schema[schema_name].append({
-                    'name': table_name,
-                    'columns': []  # Will be loaded lazily
-                })
+                schema[schema_name].append(
+                    {
+                        "name": table_name,
+                        "columns": [],  # Will be loaded lazily
+                    }
+                )
 
             return schema
         except MSSQLError as e:
@@ -153,14 +155,13 @@ class MSSQLEngine(BaseEngine):
     async def get_databases(self) -> List[str]:
         """Get list of available databases."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()
             await asyncio.to_thread(
                 cursor.execute,
-                "SELECT name FROM sys.databases WHERE state_desc = 'ONLINE' ORDER BY name"
+                "SELECT name FROM sys.databases WHERE state_desc = 'ONLINE' ORDER BY name",
             )
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
@@ -171,14 +172,12 @@ class MSSQLEngine(BaseEngine):
     async def get_schemas(self, database: str) -> List[str]:
         """Get list of schemas in the current database."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()
             await asyncio.to_thread(
-                cursor.execute,
-                "SELECT name FROM sys.schemas ORDER BY name"
+                cursor.execute, "SELECT name FROM sys.schemas ORDER BY name"
             )
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
@@ -189,8 +188,7 @@ class MSSQLEngine(BaseEngine):
     async def get_tables(self, database: str, schema: str) -> List[str]:
         """Get list of tables in a schema."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()
@@ -199,7 +197,7 @@ class MSSQLEngine(BaseEngine):
                 "SELECT t.name FROM sys.tables t "
                 "JOIN sys.schemas s ON t.schema_id = s.schema_id "
                 "WHERE s.name = %s ORDER BY t.name",
-                (schema,)
+                (schema,),
             )
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
@@ -207,11 +205,12 @@ class MSSQLEngine(BaseEngine):
         except Exception as e:
             raise Exception(f"Failed to retrieve tables: {e}")
 
-    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_columns(
+        self, database: str, schema: str, table: str
+    ) -> List[Dict[str, Any]]:
         """Get columns for a specific table."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         query = """
         SELECT 
@@ -230,7 +229,7 @@ class MSSQLEngine(BaseEngine):
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
 
-            return [{'name': col[0], 'type': col[1]} for col in rows]
+            return [{"name": col[0], "type": col[1]} for col in rows]
         except MSSQLError as e:
             raise Exception(f"Failed to retrieve columns: {e}")
         except Exception as e:
@@ -239,8 +238,7 @@ class MSSQLEngine(BaseEngine):
     async def get_explain_plan(self, query: str) -> str:
         """Get the execution plan in XML format."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()

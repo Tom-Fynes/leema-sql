@@ -1,4 +1,5 @@
 """Execution Plan Visualizer - Parse and render EXPLAIN output."""
+
 from typing import Optional, Dict, Any
 from textual.app import ComposeResult
 from textual.containers import Vertical
@@ -101,14 +102,14 @@ class ExecutionPlanViewer(Vertical):
     def _parse_mssql_plan(self, plan_text: str) -> None:
         """Parse SQL Server execution plan (XML)."""
         # Simplified - in production, use xml.etree.ElementTree
-        lines = plan_text.split('\n')
+        lines = plan_text.split("\n")
         for line in lines[:50]:  # Limit to first 50 lines
             if line.strip():
                 self._plan_tree.root.add_leaf(line.strip())
 
     def _parse_duckdb_plan(self, plan_text: str) -> None:
         """Parse DuckDB execution plan."""
-        lines = plan_text.split('\n')
+        lines = plan_text.split("\n")
         current_node = self._plan_tree.root
 
         for line in lines:
@@ -126,7 +127,7 @@ class ExecutionPlanViewer(Vertical):
 
     def _parse_generic_plan(self, plan_text: str) -> None:
         """Parse generic text execution plan."""
-        lines = plan_text.split('\n')
+        lines = plan_text.split("\n")
         for line in lines:
             if line.strip():
                 self._plan_tree.root.add_leaf(line.strip())

@@ -1,4 +1,5 @@
 """The Burrow - Sidebar with lazy-loading database tree."""
+
 from typing import Optional, Dict, Any
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
@@ -26,7 +27,9 @@ class BurrowSidebar(VerticalScroll):
     class SchemaSelected(Message):
         """Posted when a schema item is selected."""
 
-        def __init__(self, node_type: str, path: list[str], metadata: Dict[str, Any]) -> None:
+        def __init__(
+            self, node_type: str, path: list[str], metadata: Dict[str, Any]
+        ) -> None:
             self.node_type = node_type
             self.path = path
             self.metadata = metadata
@@ -60,8 +63,7 @@ class BurrowSidebar(VerticalScroll):
 
         # Add connection as root node
         connection_node = self._schema_tree.root.add(
-            "🔌 Connection",
-            data={"type": "connection", "path": []}
+            "🔌 Connection", data={"type": "connection", "path": []}
         )
         connection_node.allow_expand = True
 
@@ -98,11 +100,7 @@ class BurrowSidebar(VerticalScroll):
             for db_name in databases:
                 db_node = node.add(
                     f"🗄️  {db_name}",
-                    data={
-                        "type": "database",
-                        "name": db_name,
-                        "path": [db_name]
-                    }
+                    data={"type": "database", "name": db_name, "path": [db_name]},
                 )
                 db_node.allow_expand = True
         except Exception as e:
@@ -125,8 +123,8 @@ class BurrowSidebar(VerticalScroll):
                         "type": "schema",
                         "name": schema_name,
                         "database": database,
-                        "path": [database, schema_name]
-                    }
+                        "path": [database, schema_name],
+                    },
                 )
                 schema_node.allow_expand = True
         except Exception as e:
@@ -151,8 +149,8 @@ class BurrowSidebar(VerticalScroll):
                         "name": table_name,
                         "schema": schema,
                         "database": database,
-                        "path": [database, schema, table_name]
-                    }
+                        "path": [database, schema, table_name],
+                    },
                 )
                 table_node.allow_expand = True
         except Exception as e:
@@ -191,6 +189,6 @@ class BurrowSidebar(VerticalScroll):
                 self.SchemaSelected(
                     node_type=node_data.get("type", ""),
                     path=node_data.get("path", []),
-                    metadata=node_data
+                    metadata=node_data,
                 )
             )

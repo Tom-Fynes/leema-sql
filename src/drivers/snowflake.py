@@ -1,4 +1,5 @@
 """Snowflake database driver implementation."""
+
 from typing import List, Dict, Any, Optional, Tuple
 from .base import BaseEngine, QueryResult
 import asyncio
@@ -20,7 +21,7 @@ class SnowflakeEngine(BaseEngine):
         warehouse: Optional[str] = None,
         role: Optional[str] = None,
         schema: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         """Initialize the Snowflake engine.
 
@@ -57,18 +58,18 @@ class SnowflakeEngine(BaseEngine):
             import snowflake.connector
 
             conn_params: Dict[str, Any] = {
-                'user': self._username,
-                'password': self._password,
-                'account': self._account,
-                'database': self._database,
+                "user": self._username,
+                "password": self._password,
+                "account": self._account,
+                "database": self._database,
             }
 
             if self._warehouse:
-                conn_params['warehouse'] = self._warehouse
+                conn_params["warehouse"] = self._warehouse
             if self._role:
-                conn_params['role'] = self._role
+                conn_params["role"] = self._role
             if self._schema:
-                conn_params['schema'] = self._schema
+                conn_params["schema"] = self._schema
 
             conn_params.update(self._options)
 
@@ -99,7 +100,8 @@ class SnowflakeEngine(BaseEngine):
 
             columns = (
                 [desc[0] for desc in self._cursor.description]
-                if self._cursor.description else []
+                if self._cursor.description
+                else []
             )
             rows = await asyncio.to_thread(self._cursor.fetchall)
             execution_time = time.time() - start_time
@@ -122,7 +124,7 @@ class SnowflakeEngine(BaseEngine):
             await asyncio.to_thread(
                 self._cursor.execute,
                 "SELECT table_schema, table_name FROM information_schema.tables "
-                "WHERE table_type = 'BASE TABLE' ORDER BY table_schema, table_name"
+                "WHERE table_type = 'BASE TABLE' ORDER BY table_schema, table_name",
             )
             rows = await asyncio.to_thread(self._cursor.fetchall)
 
@@ -130,10 +132,7 @@ class SnowflakeEngine(BaseEngine):
             for table_schema, table_name in rows:
                 if table_schema not in schema:
                     schema[table_schema] = []
-                schema[table_schema].append({
-                    'name': table_name,
-                    'columns': []
-                })
+                schema[table_schema].append({"name": table_name, "columns": []})
             return schema
         except Exception as e:
             raise Exception(f"Failed to retrieve schema: {str(e)}")
@@ -177,7 +176,9 @@ class SnowflakeEngine(BaseEngine):
         except Exception as e:
             raise RuntimeError(f"Failed to fetch tables: {str(e)}")
 
-    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_columns(
+        self, database: str, schema: str, table: str
+    ) -> List[Dict[str, Any]]:
         """Get column information for a table."""
         if not self._cursor:
             raise RuntimeError("Not connected to database. Call connect() first.")
@@ -185,18 +186,20 @@ class SnowflakeEngine(BaseEngine):
         try:
             await asyncio.to_thread(
                 self._cursor.execute,
-                f'DESCRIBE TABLE "{database}"."{schema}"."{table}"'
+                f'DESCRIBE TABLE "{database}"."{schema}"."{table}"',
             )
             rows = await asyncio.to_thread(self._cursor.fetchall)
 
             columns = []
             for row in rows:
-                columns.append({
-                    'name': row[0],
-                    'type': row[1],
-                    'nullable': row[3] == 'Y',
-                    'default': row[4] if len(row) > 4 else None,
-                })
+                columns.append(
+                    {
+                        "name": row[0],
+                        "type": row[1],
+                        "nullable": row[3] == "Y",
+                        "default": row[4] if len(row) > 4 else None,
+                    }
+                )
             return columns
         except Exception as e:
             raise RuntimeError(f"Failed to fetch columns: {str(e)}")
@@ -232,4 +235,3 @@ class SnowflakeEngine(BaseEngine):
     def is_connected(self) -> bool:
         """Check if the connection is alive."""
         return self._connection is not None and self._cursor is not None
-

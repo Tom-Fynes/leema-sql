@@ -39,6 +39,7 @@ def test_sidebar_loaded_nodes_empty_on_init():
 
 # --- Bug fix tests ---
 
+
 def test_column_nullable_display_without_key():
     """Bug fix: columns without a 'nullable' key must not show 'NOT NULL' erroneously."""
     # Simulate what _load_columns does when building the label
@@ -97,6 +98,7 @@ def test_format_sql_notifies_on_failure():
 
 
 # --- Theme tests ---
+
 
 def test_nebula_nights_theme_name():
     """Nebula Nights theme must have the correct name."""
