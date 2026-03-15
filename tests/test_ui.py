@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch, MagicMock
 from src.ui.sidebar import BurrowSidebar
 from src.ui.editor import WorkspaceEditor
 from src.ui.plan_viz import ExecutionPlanViewer
@@ -72,3 +73,24 @@ def test_column_nullable_display_with_nullable_false():
         nullable = ""
     label = f"🔹 {col['name']} ({col['type']}){nullable}"
     assert "NOT NULL" in label
+
+
+def test_format_sql_notifies_on_failure():
+    """Bug fix: action_format_sql must call notify() when sqlparse raises, not silently pass."""
+    editor = WorkspaceEditor()
+
+    # Attach a mock text area with non-empty text so formatting is attempted
+    mock_textarea = MagicMock()
+    mock_textarea.text = "SELECT *** INVALID"
+    editor.editor = mock_textarea
+
+    with patch("sqlparse.format", side_effect=Exception("parse error")):
+        with patch.object(editor, "notify") as mock_notify:
+            editor.action_format_sql()
+
+    mock_notify.assert_called_once()
+    # Severity should be 'warning' (not an error, just a format issue)
+    _, kwargs = mock_notify.call_args
+    assert kwargs.get("severity") == "warning", (
+        f"Expected severity='warning', got: {kwargs.get('severity')}"
+    )

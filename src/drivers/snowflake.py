@@ -156,7 +156,7 @@ class SnowflakeEngine(BaseEngine):
             raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
-            await asyncio.to_thread(self._cursor.execute, f"USE DATABASE {database}")
+            await asyncio.to_thread(self._cursor.execute, f'USE DATABASE "{database}"')
             await asyncio.to_thread(self._cursor.execute, "SHOW SCHEMAS")
             rows = await asyncio.to_thread(self._cursor.fetchall)
             return sorted(row[1] for row in rows)
@@ -169,8 +169,8 @@ class SnowflakeEngine(BaseEngine):
             raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
-            await asyncio.to_thread(self._cursor.execute, f"USE DATABASE {database}")
-            await asyncio.to_thread(self._cursor.execute, f"USE SCHEMA {schema}")
+            await asyncio.to_thread(self._cursor.execute, f'USE DATABASE "{database}"')
+            await asyncio.to_thread(self._cursor.execute, f'USE SCHEMA "{schema}"')
             await asyncio.to_thread(self._cursor.execute, "SHOW TABLES")
             rows = await asyncio.to_thread(self._cursor.fetchall)
             return sorted(row[1] for row in rows)
@@ -185,7 +185,7 @@ class SnowflakeEngine(BaseEngine):
         try:
             await asyncio.to_thread(
                 self._cursor.execute,
-                f"DESCRIBE TABLE {database}.{schema}.{table}"
+                f'DESCRIBE TABLE "{database}"."{schema}"."{table}"'
             )
             rows = await asyncio.to_thread(self._cursor.fetchall)
 

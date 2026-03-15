@@ -106,14 +106,14 @@ class TrinoEngine(BaseEngine):
 
         query = f"""
         SELECT table_schema, table_name
-        FROM {self.catalog}.information_schema.tables
-        WHERE table_catalog = '{self.catalog}'
+        FROM "{self.catalog}".information_schema.tables
+        WHERE table_catalog = ?
         ORDER BY table_schema, table_name
         """
 
         try:
             cursor = self.connection.cursor()
-            await asyncio.to_thread(cursor.execute, query)
+            await asyncio.to_thread(cursor.execute, query, [self.catalog])
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
 
@@ -156,7 +156,7 @@ class TrinoEngine(BaseEngine):
 
         try:
             cursor = self.connection.cursor()
-            await asyncio.to_thread(cursor.execute, f"SHOW SCHEMAS FROM {database}")
+            await asyncio.to_thread(cursor.execute, f'SHOW SCHEMAS FROM "{database}"')
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
             return [row[0] for row in rows]
@@ -171,7 +171,7 @@ class TrinoEngine(BaseEngine):
 
         try:
             cursor = self.connection.cursor()
-            await asyncio.to_thread(cursor.execute, f"SHOW TABLES FROM {database}.{schema}")
+            await asyncio.to_thread(cursor.execute, f'SHOW TABLES FROM "{database}"."{schema}"')
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
             return [row[0] for row in rows]
@@ -186,14 +186,14 @@ class TrinoEngine(BaseEngine):
 
         query = f"""
         SELECT column_name, data_type
-        FROM {database}.information_schema.columns
-        WHERE table_schema = '{schema}' AND table_name = '{table}'
+        FROM "{database}".information_schema.columns
+        WHERE table_schema = ? AND table_name = ?
         ORDER BY ordinal_position
         """
 
         try:
             cursor = self.connection.cursor()
-            await asyncio.to_thread(cursor.execute, query)
+            await asyncio.to_thread(cursor.execute, query, [schema, table])
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
 
