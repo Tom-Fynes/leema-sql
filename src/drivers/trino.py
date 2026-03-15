@@ -8,8 +8,9 @@ except ImportError:
         "trino is not installed. Install with: pip install 'leema-sql[trino]'")
 
 from typing import List, Dict, Any, Optional, Tuple
-from src.drivers.base import BaseEngine
+from src.drivers.base import BaseEngine, QueryResult
 import asyncio
+import time
 
 
 class TrinoEngine(BaseEngine):
@@ -25,7 +26,7 @@ class TrinoEngine(BaseEngine):
         port: int,
         catalog: str,
         schema: str,
-        user: str,
+        username: str,
         http_scheme: str = "http",
         **kwargs
     ):
@@ -36,7 +37,7 @@ class TrinoEngine(BaseEngine):
             port: Trino coordinator port (default 8080).
             catalog: Catalog name (e.g., 'hive', 'postgresql').
             schema: Schema/database name.
-            user: Username.
+            username: Username.
             http_scheme: 'http' or 'https'.
             **kwargs: Additional connection parameters (auth, cert, etc.).
         """
@@ -45,7 +46,7 @@ class TrinoEngine(BaseEngine):
             'port': port,
             'catalog': catalog,
             'schema': schema,
-            'user': user,
+            'user': username,
             'http_scheme': http_scheme,
             **kwargs
         }
@@ -64,13 +65,14 @@ class TrinoEngine(BaseEngine):
         except Exception as e:
             raise ConnectionError(f"Unexpected error connecting to Trino: {e}")
 
-    async def execute(self, query: str, params: Optional[Tuple] = None) -> List[Tuple[Any, ...]]:
+    async def execute(self, query: str, params: Optional[Tuple] = None) -> QueryResult:
         """Execute a SQL query."""
         if not self.connection:
             raise RuntimeError(
                 "Not connected to database. Call connect() first.")
 
         try:
+            start_time = time.time()
             cursor = self.connection.cursor()
 
             # Execute in thread pool to avoid blocking
@@ -80,10 +82,17 @@ class TrinoEngine(BaseEngine):
                 await asyncio.to_thread(cursor.execute, query)
 
             # Fetch results
-            results = await asyncio.to_thread(cursor.fetchall)
+            rows = await asyncio.to_thread(cursor.fetchall)
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
             cursor.close()
 
-            return results
+            execution_time = time.time() - start_time
+            return QueryResult(
+                columns=columns,
+                rows=list(rows),
+                row_count=len(rows),
+                execution_time=execution_time,
+            )
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Query execution failed: {e}")
         except Exception as e:
@@ -124,7 +133,52 @@ class TrinoEngine(BaseEngine):
         except Exception as e:
             raise Exception(f"Unexpected error retrieving schema: {e}")
 
-    async def get_columns(self, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_databases(self) -> List[str]:
+        """Get list of available catalogs in Trino."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            cursor = self.connection.cursor()
+            await asyncio.to_thread(cursor.execute, "SHOW CATALOGS")
+            rows = await asyncio.to_thread(cursor.fetchall)
+            cursor.close()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve databases: {e}")
+
+    async def get_schemas(self, database: str) -> List[str]:
+        """Get list of schemas in a catalog."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            cursor = self.connection.cursor()
+            await asyncio.to_thread(cursor.execute, f"SHOW SCHEMAS FROM {database}")
+            rows = await asyncio.to_thread(cursor.fetchall)
+            cursor.close()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve schemas: {e}")
+
+    async def get_tables(self, database: str, schema: str) -> List[str]:
+        """Get list of tables in a schema."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            cursor = self.connection.cursor()
+            await asyncio.to_thread(cursor.execute, f"SHOW TABLES FROM {database}.{schema}")
+            rows = await asyncio.to_thread(cursor.fetchall)
+            cursor.close()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve tables: {e}")
+
+    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
         """Get columns for a specific table."""
         if not self.connection:
             raise RuntimeError(
@@ -132,7 +186,7 @@ class TrinoEngine(BaseEngine):
 
         query = f"""
         SELECT column_name, data_type
-        FROM {self.catalog}.information_schema.columns
+        FROM {database}.information_schema.columns
         WHERE table_schema = '{schema}' AND table_name = '{table}'
         ORDER BY ordinal_position
         """

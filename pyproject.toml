@@ -39,7 +39,6 @@ snowflake = ["snowflake-connector-python>=3.6.0"]
 mysql = ["mysql-connector-python>=8.2.0"]
 mssql = ["pymssql>=2.2.0"]
 trino = ["trino>=0.328.0"]
-snowflake = ["snowflake-connector-python>=3.6.0"]
 all = [
     "psycopg[binary]>=3.1.0",
     "mysql-connector-python>=8.2.0",
@@ -49,7 +48,7 @@ all = [
 ]
 
 [project.scripts]
-leema = "leema.cli:main"
+leema = "src.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

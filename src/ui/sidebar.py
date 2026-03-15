@@ -34,23 +34,23 @@ class BurrowSidebar(VerticalScroll):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.tree: Optional[Tree] = None
+        self._schema_tree: Optional[Tree] = None
         self._engine = None
         self._loaded_nodes: set[str] = set()
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
-        self.tree = Tree("🌳 The Burrow", id="burrow-tree")
-        self.tree.show_root = True
-        self.tree.show_guides = True
-        yield self.tree
+        self._schema_tree = Tree("🌳 The Burrow", id="burrow-tree")
+        self._schema_tree.show_root = True
+        self._schema_tree.show_guides = True
+        yield self._schema_tree
 
     def set_engine(self, engine) -> None:
         """Set the database engine and load root connections."""
         self._engine = engine
-        if self.tree:
-            self.tree.clear()
-            self.tree.root.set_label("🌳 The Burrow")
+        if self._schema_tree:
+            self._schema_tree.clear()
+            self._schema_tree.root.set_label("🌳 The Burrow")
             self._load_root()
 
     def _load_root(self) -> None:
@@ -59,7 +59,7 @@ class BurrowSidebar(VerticalScroll):
             return
 
         # Add connection as root node
-        connection_node = self.tree.root.add(
+        connection_node = self._schema_tree.root.add(
             "🔌 Connection",
             data={"type": "connection", "path": []}
         )

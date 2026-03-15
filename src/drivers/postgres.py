@@ -8,20 +8,21 @@ except ImportError:
         "psycopg is not installed. Install with: pip install 'leema-sql[postgres]'")
 
 from typing import List, Dict, Any, Optional, Tuple
-from src.drivers.base import BaseEngine
+import time
+from src.drivers.base import BaseEngine, QueryResult
 
 
 class PostgresEngine(BaseEngine):
     """PostgreSQL engine implementation using psycopg (async)."""
 
-    def __init__(self, host: str, port: int, database: str, user: str, password: str, **kwargs):
+    def __init__(self, host: str, port: int, database: str, username: str, password: str, **kwargs):
         """Initialize the PostgreSQL engine.
 
         Args:
             host: Database host.
             port: Database port.
             database: Database name.
-            user: Username.
+            username: Username.
             password: Password.
             **kwargs: Additional connection parameters.
         """
@@ -29,7 +30,7 @@ class PostgresEngine(BaseEngine):
             'host': host,
             'port': port,
             'dbname': database,
-            'user': user,
+            'user': username,
             'password': password,
             **kwargs
         }
@@ -43,16 +44,25 @@ class PostgresEngine(BaseEngine):
         except Exception as e:
             raise ConnectionError(f"Failed to connect to PostgreSQL: {e}")
 
-    async def execute(self, query: str, params: Optional[Tuple] = None) -> List[Tuple[Any, ...]]:
+    async def execute(self, query: str, params: Optional[Tuple] = None) -> QueryResult:
         """Execute a SQL query asynchronously."""
         if not self.connection:
             raise RuntimeError(
                 "Not connected to database. Call connect() first.")
 
         try:
+            start_time = time.time()
             async with self.connection.cursor() as cursor:
                 await cursor.execute(query, params)
-                return await cursor.fetchall()
+                rows = await cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            execution_time = time.time() - start_time
+            return QueryResult(
+                columns=columns,
+                rows=list(rows),
+                row_count=len(rows),
+                execution_time=execution_time,
+            )
         except Exception as e:
             raise Exception(f"Query execution failed: {e}")
 
@@ -88,7 +98,59 @@ class PostgresEngine(BaseEngine):
         except Exception as e:
             raise Exception(f"Failed to retrieve schema: {e}")
 
-    async def get_columns(self, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_databases(self) -> List[str]:
+        """Get list of available databases."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            async with self.connection.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname"
+                )
+                rows = await cursor.fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve databases: {e}")
+
+    async def get_schemas(self, database: str) -> List[str]:
+        """Get list of schemas in the current database (database param is ignored for PostgreSQL)."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            async with self.connection.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT schema_name FROM information_schema.schemata "
+                    "WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast') "
+                    "ORDER BY schema_name"
+                )
+                rows = await cursor.fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve schemas: {e}")
+
+    async def get_tables(self, database: str, schema: str) -> List[str]:
+        """Get list of tables in a schema."""
+        if not self.connection:
+            raise RuntimeError(
+                "Not connected to database. Call connect() first.")
+
+        try:
+            async with self.connection.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = %s ORDER BY table_name",
+                    (schema,)
+                )
+                rows = await cursor.fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve tables: {e}")
+
+    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
         """Get columns for a specific table."""
         if not self.connection:
             raise RuntimeError(
