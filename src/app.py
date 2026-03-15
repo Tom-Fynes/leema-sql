@@ -14,6 +14,7 @@ from .ui.plan_viz import ExecutionPlanViewer
 from .config import LeemaConfig, ConnectionProfile
 from .security import SecurityManager
 from .drivers import get_engine
+from .theme import NEBULA_NIGHTS
 
 
 class LeemaApp(App):
@@ -115,7 +116,9 @@ class LeemaApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Handle app mount - auto-connect if default profile exists."""
+        """Handle app mount - register theme and auto-connect if default profile exists."""
+        self.register_theme(NEBULA_NIGHTS)
+        self.theme = NEBULA_NIGHTS.name
         if self.config.default_profile:
             self.connect_to_profile(self.config.default_profile)
 
