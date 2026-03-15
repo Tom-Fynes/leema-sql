@@ -1,7 +1,7 @@
 """The Results Console - DataTable for query results with copy/paste support."""
 from typing import Any, List, Optional
 from textual.app import ComposeResult
-from textual.containers import VerticalScroll, Vertical
+from textual.containers import Vertical
 from textual.widgets import DataTable, Static, Label
 from textual.binding import Binding
 import csv

@@ -1,11 +1,9 @@
 """Execution Plan Visualizer - Parse and render EXPLAIN output."""
 from typing import Optional, Dict, Any
 from textual.app import ComposeResult
-from textual.containers import VerticalScroll, Vertical
+from textual.containers import Vertical
 from textual.widgets import Static, Tree
 from textual.widgets.tree import TreeNode
-from rich.tree import Tree as RichTree
-from rich.text import Text
 import json
 
 

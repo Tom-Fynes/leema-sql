@@ -5,7 +5,6 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Header, Footer, TabbedContent, TabPane, LoadingIndicator
-from textual.worker import Worker, WorkerState
 
 from .ui.sidebar import BurrowSidebar
 from .ui.editor import WorkspaceEditor
@@ -308,7 +307,6 @@ class LeemaApp(App):
     def on_burrow_sidebar_schema_selected(self, message: BurrowSidebar.SchemaSelected) -> None:
         """Handle schema item selection in sidebar."""
         node_type = message.node_type
-        metadata = message.metadata
 
         if node_type == "table":
             # Insert SELECT statement template

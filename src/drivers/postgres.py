@@ -1,7 +1,6 @@
 """PostgreSQL database driver implementation."""
 
 try:
-    import psycopg
     from psycopg import AsyncConnection
 except ImportError:
     raise ImportError(

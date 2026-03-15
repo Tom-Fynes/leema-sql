@@ -2,11 +2,10 @@
 
 import pytest
 import pytest_asyncio
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from src.drivers.base import BaseEngine, QueryResult
+from unittest.mock import MagicMock, patch
+from src.drivers.base import QueryResult
 from src.drivers.duckdb import DuckDBEngine
-from src.drivers import get_available_drivers, get_engine
+from src.drivers import get_available_drivers
 
 
 @pytest_asyncio.fixture
@@ -168,7 +167,7 @@ async def test_trino_get_schemas_quotes_database():
     engine.connection = mock_conn
 
     with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
-        result = await engine.get_schemas("my-catalog")
+        await engine.get_schemas("my-catalog")
 
     executed_sql = mock_cursor.execute.call_args[0][0]
     assert '"my-catalog"' in executed_sql, (
@@ -192,7 +191,7 @@ async def test_trino_get_tables_quotes_database_and_schema():
     engine.connection = mock_conn
 
     with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
-        result = await engine.get_tables("my-catalog", "my-schema")
+        await engine.get_tables("my-catalog", "my-schema")
 
     executed_sql = mock_cursor.execute.call_args[0][0]
     assert '"my-catalog"' in executed_sql, (
@@ -219,7 +218,7 @@ async def test_trino_get_columns_quotes_database_and_parameterises_values():
     engine.connection = mock_conn
 
     with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
-        result = await engine.get_columns("my-catalog", "my-schema", "my-table")
+        await engine.get_columns("my-catalog", "my-schema", "my-table")
 
     executed_sql = mock_cursor.execute.call_args[0][0]
     call_positional_args = mock_cursor.execute.call_args[0]

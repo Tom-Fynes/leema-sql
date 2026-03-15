@@ -6,8 +6,6 @@ from textual.widgets import TextArea
 from textual.message import Message
 from textual.binding import Binding
 import sqlparse
-from pygments.lexers import SqlLexer
-from pygments.token import Token
 
 
 class WorkspaceEditor(VerticalScroll):
