@@ -11,6 +11,20 @@ class SecurityManager:
     KEYRING_SERVICE = "leema-sql"
 
     @staticmethod
+    def _make_key(engine: str, host: str, username: str) -> str:
+        """Build a deterministic keyring key from connection components.
+
+        Args:
+            engine: Database engine type (e.g. "postgres").
+            host: Database host.
+            username: Database username.
+
+        Returns:
+            A colon-separated composite key string.
+        """
+        return f"{engine}:{host}:{username}"
+
+    @staticmethod
     def store_password(connection_name: str, password: str) -> None:
         """Store a password securely in the system keyring.
 
@@ -32,6 +46,34 @@ class SecurityManager:
             The stored password or None if not found.
         """
         return keyring.get_password(SecurityManager.KEYRING_SERVICE, connection_name)
+
+    @staticmethod
+    def set_password(engine: str, host: str, username: str, password: str) -> None:
+        """Store a password keyed by engine/host/username.
+
+        Args:
+            engine: Database engine type.
+            host: Database host.
+            username: Database username.
+            password: The password to store.
+        """
+        key = SecurityManager._make_key(engine, host, username)
+        keyring.set_password(SecurityManager.KEYRING_SERVICE, key, password)
+
+    @staticmethod
+    def get_password(engine: str, host: str, username: str) -> Optional[str]:
+        """Retrieve a password keyed by engine/host/username.
+
+        Args:
+            engine: Database engine type.
+            host: Database host.
+            username: Database username.
+
+        Returns:
+            The stored password or None if not found.
+        """
+        key = SecurityManager._make_key(engine, host, username)
+        return keyring.get_password(SecurityManager.KEYRING_SERVICE, key)
 
     @staticmethod
     def delete_password(connection_name: str) -> None:

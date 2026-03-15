@@ -5,6 +5,7 @@ import pytest_asyncio
 import asyncio
 from src.drivers.base import BaseEngine, QueryResult
 from src.drivers.duckdb import DuckDBEngine
+from src.drivers import get_available_drivers, get_engine
 
 
 @pytest_asyncio.fixture
@@ -109,4 +110,41 @@ async def test_duckdb_not_connected_error():
 
     with pytest.raises(RuntimeError, match="Not connected"):
         await driver.execute("SELECT 1")
+
+
+# --- Bug fix tests ---
+
+def test_get_available_drivers_returns_dict():
+    """Bug fix: get_available_drivers must be importable and return a dict."""
+    drivers = get_available_drivers()
+    assert isinstance(drivers, dict)
+    assert len(drivers) > 0
+
+
+def test_get_available_drivers_contains_duckdb():
+    """Bug fix: DuckDB is always available and must appear in the driver registry."""
+    drivers = get_available_drivers()
+    assert "duckdb" in drivers
+
+
+def test_get_available_drivers_returns_copy():
+    """Bug fix: mutating the returned dict must not affect the registry."""
+    drivers = get_available_drivers()
+    drivers.clear()
+    assert "duckdb" in get_available_drivers()
+
+
+@pytest.mark.asyncio
+async def test_duckdb_explain_plan_returns_plan_text():
+    """Bug fix: get_explain_plan must return actual plan text, not the column name."""
+    driver = DuckDBEngine(':memory:')
+    await driver.connect()
+    await driver.execute("CREATE TABLE t (id INTEGER, name VARCHAR)")
+    plan = await driver.get_explain_plan("SELECT * FROM t")
+    await driver.close()
+
+    # Must not be just the column key name
+    assert plan.strip() != "physical_plan"
+    # Must contain meaningful plan content (DuckDB renders ASCII box-drawing art)
+    assert len(plan.strip()) > 20
 

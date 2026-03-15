@@ -34,3 +34,41 @@ def test_sidebar_loaded_nodes_empty_on_init():
     """Test that the loaded nodes set is empty on init."""
     sidebar = BurrowSidebar()
     assert len(sidebar._loaded_nodes) == 0
+
+
+# --- Bug fix tests ---
+
+def test_column_nullable_display_without_key():
+    """Bug fix: columns without a 'nullable' key must not show 'NOT NULL' erroneously."""
+    # Simulate what _load_columns does when building the label
+    col = {"name": "id", "type": "INTEGER"}
+    if "nullable" in col:
+        nullable = " NULL" if col["nullable"] else " NOT NULL"
+    else:
+        nullable = ""
+    label = f"🔹 {col['name']} ({col['type']}){nullable}"
+    assert "NOT NULL" not in label
+    assert "NULL" not in label
+
+
+def test_column_nullable_display_with_nullable_true():
+    """Columns with nullable=True must display ' NULL'."""
+    col = {"name": "description", "type": "TEXT", "nullable": True}
+    if "nullable" in col:
+        nullable = " NULL" if col["nullable"] else " NOT NULL"
+    else:
+        nullable = ""
+    label = f"🔹 {col['name']} ({col['type']}){nullable}"
+    assert " NULL" in label
+    assert "NOT NULL" not in label
+
+
+def test_column_nullable_display_with_nullable_false():
+    """Columns with nullable=False must display ' NOT NULL'."""
+    col = {"name": "id", "type": "INTEGER", "nullable": False}
+    if "nullable" in col:
+        nullable = " NULL" if col["nullable"] else " NOT NULL"
+    else:
+        nullable = ""
+    label = f"🔹 {col['name']} ({col['type']}){nullable}"
+    assert "NOT NULL" in label

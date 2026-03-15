@@ -141,7 +141,7 @@ class LeemaApp(App):
         self._current_profile = profile
 
         try:
-            self.loading_indicator.display = True
+            self.call_from_thread(self._show_loading)
             self.notify(f"Connecting to {profile.name}...")
 
             # Get password from vault if not in profile
@@ -192,6 +192,11 @@ class LeemaApp(App):
         self.notify(f"Connection failed: {error}", severity="error")
         self._current_engine = None
 
+    def _show_loading(self) -> None:
+        """Show loading indicator."""
+        if self.loading_indicator:
+            self.loading_indicator.display = True
+
     def _hide_loading(self) -> None:
         """Hide loading indicator."""
         if self.loading_indicator:
@@ -219,7 +224,7 @@ class LeemaApp(App):
     async def execute_query(self, sql: str) -> None:
         """Execute SQL query asynchronously."""
         try:
-            self.loading_indicator.display = True
+            self.call_from_thread(self._show_loading)
             self.call_from_thread(
                 self._update_results_status, "Executing query...")
 
@@ -244,7 +249,7 @@ class LeemaApp(App):
     async def execute_explain(self, sql: str) -> None:
         """Execute EXPLAIN for query."""
         try:
-            self.loading_indicator.display = True
+            self.call_from_thread(self._show_loading)
             self.call_from_thread(
                 self._update_results_status, "Generating execution plan...")
 

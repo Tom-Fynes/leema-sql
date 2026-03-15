@@ -1,7 +1,6 @@
 """DuckDB database driver implementation."""
 
 import duckdb
-import json
 import time
 from typing import List, Dict, Any, Optional, Tuple
 from src.drivers.base import BaseEngine, QueryResult
@@ -156,7 +155,11 @@ class DuckDBEngine(BaseEngine):
 
         try:
             result = self.connection.execute(f"EXPLAIN {query}").fetchall()
-            return json.dumps([row[0] for row in result], indent=2)
+            plan_parts = []
+            for row in result:
+                if len(row) >= 2:
+                    plan_parts.append(str(row[1]))
+            return "\n".join(plan_parts) if plan_parts else ""
         except Exception as e:
             raise Exception(f"Failed to get execution plan: {e}")
 
