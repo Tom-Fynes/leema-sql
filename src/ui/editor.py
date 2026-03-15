@@ -84,8 +84,7 @@ class WorkspaceEditor(VerticalScroll):
             )
             self.editor.text = formatted
         except Exception:
-            # Silently fail formatting - don't break user flow
-            pass
+            self.notify("Could not format SQL", severity="warning")
 
     def action_toggle_comment(self) -> None:
         """Toggle SQL comment on current line or selection."""

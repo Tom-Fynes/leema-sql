@@ -3,6 +3,7 @@
 import pytest
 import pytest_asyncio
 import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch, call
 from src.drivers.base import BaseEngine, QueryResult
 from src.drivers.duckdb import DuckDBEngine
 from src.drivers import get_available_drivers, get_engine
@@ -147,4 +148,168 @@ async def test_duckdb_explain_plan_returns_plan_text():
     assert plan.strip() != "physical_plan"
     # Must contain meaningful plan content (DuckDB renders ASCII box-drawing art)
     assert len(plan.strip()) > 20
+
+
+# --- Trino identifier-quoting tests ---
+
+@pytest.mark.asyncio
+async def test_trino_get_schemas_quotes_database():
+    """Bug fix: get_schemas must send SHOW SCHEMAS FROM \"<db>\" (quoted identifier)."""
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(
+        host="localhost", port=8080, catalog="hive",
+        schema="default", username="user"
+    )
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [("public",)]
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    engine.connection = mock_conn
+
+    with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+        result = await engine.get_schemas("my-catalog")
+
+    executed_sql = mock_cursor.execute.call_args[0][0]
+    assert '"my-catalog"' in executed_sql, (
+        f"Expected quoted identifier in SQL, got: {executed_sql}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_trino_get_tables_quotes_database_and_schema():
+    """Bug fix: get_tables must send SHOW TABLES FROM \"<db>\".\"<schema>\" (quoted)."""
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(
+        host="localhost", port=8080, catalog="hive",
+        schema="default", username="user"
+    )
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [("orders",)]
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    engine.connection = mock_conn
+
+    with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+        result = await engine.get_tables("my-catalog", "my-schema")
+
+    executed_sql = mock_cursor.execute.call_args[0][0]
+    assert '"my-catalog"' in executed_sql, (
+        f"Expected quoted catalog in SQL, got: {executed_sql}"
+    )
+    assert '"my-schema"' in executed_sql, (
+        f"Expected quoted schema in SQL, got: {executed_sql}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_trino_get_columns_quotes_database_and_parameterises_values():
+    """Bug fix: get_columns must quote the catalog identifier and parameterise schema/table."""
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(
+        host="localhost", port=8080, catalog="hive",
+        schema="default", username="user"
+    )
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [("id", "INTEGER")]
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    engine.connection = mock_conn
+
+    with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+        result = await engine.get_columns("my-catalog", "my-schema", "my-table")
+
+    executed_sql = mock_cursor.execute.call_args[0][0]
+    call_positional_args = mock_cursor.execute.call_args[0]
+    executed_params = call_positional_args[1] if len(call_positional_args) > 1 else None
+
+    # Catalog must be quoted as identifier, not injected as string literal
+    assert '"my-catalog"' in executed_sql, (
+        f"Expected quoted catalog identifier, got: {executed_sql}"
+    )
+    # Schema and table must be passed as parameters, not interpolated
+    assert "'my-schema'" not in executed_sql, (
+        f"schema should not be string-interpolated into SQL, got: {executed_sql}"
+    )
+    assert "'my-table'" not in executed_sql, (
+        f"table should not be string-interpolated into SQL, got: {executed_sql}"
+    )
+    assert executed_params == ["my-schema", "my-table"], (
+        f"Expected parameterised values, got: {executed_params}"
+    )
+
+
+# --- Snowflake identifier-quoting tests ---
+
+@pytest.mark.asyncio
+async def test_snowflake_get_schemas_quotes_database():
+    """Bug fix: get_schemas must issue USE DATABASE \"<db>\" (quoted identifier)."""
+    from src.drivers.snowflake import SnowflakeEngine
+
+    engine = SnowflakeEngine(
+        host="account.snowflakecomputing.com", port=443,
+        database="mydb", username="user"
+    )
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [("created_on", "PUBLIC", "mydb", "SCHEMA", "MANAGED ACCESS", "1")]
+    engine._cursor = mock_cursor
+
+    with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+        await engine.get_schemas("my-database")
+
+    first_call_sql = mock_cursor.execute.call_args_list[0][0][0]
+    assert '"my-database"' in first_call_sql, (
+        f"Expected quoted database identifier in USE DATABASE, got: {first_call_sql}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_snowflake_get_tables_quotes_database_and_schema():
+    """Bug fix: get_tables must quote identifiers in USE DATABASE and USE SCHEMA."""
+    from src.drivers.snowflake import SnowflakeEngine
+
+    engine = SnowflakeEngine(
+        host="account.snowflakecomputing.com", port=443,
+        database="mydb", username="user"
+    )
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = []
+    engine._cursor = mock_cursor
+
+    with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+        await engine.get_tables("my-database", "my-schema")
+
+    calls = [c[0][0] for c in mock_cursor.execute.call_args_list]
+    use_db_call = calls[0]
+    use_schema_call = calls[1]
+    assert '"my-database"' in use_db_call, (
+        f"Expected quoted identifier in USE DATABASE, got: {use_db_call}"
+    )
+    assert '"my-schema"' in use_schema_call, (
+        f"Expected quoted identifier in USE SCHEMA, got: {use_schema_call}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_snowflake_get_columns_quotes_three_part_name():
+    """Bug fix: get_columns must use \"db\".\"schema\".\"table\" in DESCRIBE TABLE."""
+    from src.drivers.snowflake import SnowflakeEngine
+
+    engine = SnowflakeEngine(
+        host="account.snowflakecomputing.com", port=443,
+        database="mydb", username="user"
+    )
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [("id", "NUMBER(38,0)", "COLUMN", "Y", None, "N", None)]
+    engine._cursor = mock_cursor
+
+    with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+        await engine.get_columns("my-db", "my-schema", "my-table")
+
+    executed_sql = mock_cursor.execute.call_args[0][0]
+    assert '"my-db"."my-schema"."my-table"' in executed_sql, (
+        f"Expected fully-quoted three-part name, got: {executed_sql}"
+    )
 
