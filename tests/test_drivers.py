@@ -2,17 +2,16 @@
 
 import pytest
 import pytest_asyncio
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from src.drivers.base import BaseEngine, QueryResult
+from unittest.mock import MagicMock, patch
+from src.drivers.base import QueryResult
 from src.drivers.duckdb import DuckDBEngine
-from src.drivers import get_available_drivers, get_engine
+from src.drivers import get_available_drivers
 
 
 @pytest_asyncio.fixture
 async def duckdb_driver():
     """Create a DuckDB driver instance."""
-    driver = DuckDBEngine(':memory:')
+    driver = DuckDBEngine(":memory:")
     await driver.connect()
     yield driver
     await driver.close()
@@ -21,7 +20,7 @@ async def duckdb_driver():
 @pytest.mark.asyncio
 async def test_duckdb_connect():
     """Test DuckDB connection."""
-    driver = DuckDBEngine(':memory:')
+    driver = DuckDBEngine(":memory:")
     await driver.connect()
     assert driver.is_connected()
     assert driver.connection is not None
@@ -35,7 +34,7 @@ async def test_duckdb_execute(duckdb_driver):
     result = await duckdb_driver.execute("SELECT 1 as test")
     assert isinstance(result, QueryResult)
     assert result.row_count == 1
-    assert result.columns == ['test']
+    assert result.columns == ["test"]
     assert result.rows[0][0] == 1
     assert result.execution_time >= 0
 
@@ -55,8 +54,8 @@ async def test_duckdb_get_schema(duckdb_driver):
     await duckdb_driver.execute("CREATE TABLE test_table (id INTEGER, name VARCHAR)")
     schema = await duckdb_driver.get_schema()
     assert isinstance(schema, dict)
-    assert 'main' in schema
-    assert any(table['name'] == 'test_table' for table in schema['main'])
+    assert "main" in schema
+    assert any(table["name"] == "test_table" for table in schema["main"])
 
 
 @pytest.mark.asyncio
@@ -70,29 +69,31 @@ async def test_duckdb_get_databases(duckdb_driver):
 @pytest.mark.asyncio
 async def test_duckdb_get_schemas(duckdb_driver):
     """Test DuckDB schema listing."""
-    schemas = await duckdb_driver.get_schemas('memory')
+    schemas = await duckdb_driver.get_schemas("memory")
     assert isinstance(schemas, list)
-    assert 'main' in schemas
+    assert "main" in schemas
 
 
 @pytest.mark.asyncio
 async def test_duckdb_get_tables(duckdb_driver):
     """Test DuckDB table listing."""
     await duckdb_driver.execute("CREATE TABLE test_table2 (id INTEGER)")
-    tables = await duckdb_driver.get_tables('memory', 'main')
+    tables = await duckdb_driver.get_tables("memory", "main")
     assert isinstance(tables, list)
-    assert 'test_table2' in tables
+    assert "test_table2" in tables
 
 
 @pytest.mark.asyncio
 async def test_duckdb_get_columns(duckdb_driver):
     """Test DuckDB column retrieval with 3-arg signature."""
-    await duckdb_driver.execute("CREATE TABLE test_table (id INTEGER, name VARCHAR, age INTEGER)")
-    columns = await duckdb_driver.get_columns('memory', 'main', 'test_table')
+    await duckdb_driver.execute(
+        "CREATE TABLE test_table (id INTEGER, name VARCHAR, age INTEGER)"
+    )
+    columns = await duckdb_driver.get_columns("memory", "main", "test_table")
     assert len(columns) == 3
-    assert columns[0]['name'] == 'id'
-    assert columns[1]['name'] == 'name'
-    assert columns[2]['name'] == 'age'
+    assert columns[0]["name"] == "id"
+    assert columns[1]["name"] == "name"
+    assert columns[2]["name"] == "age"
 
 
 @pytest.mark.asyncio
@@ -107,13 +108,14 @@ async def test_duckdb_explain_plan(duckdb_driver):
 @pytest.mark.asyncio
 async def test_duckdb_not_connected_error():
     """Test that operations fail when not connected."""
-    driver = DuckDBEngine(':memory:')
+    driver = DuckDBEngine(":memory:")
 
     with pytest.raises(RuntimeError, match="Not connected"):
         await driver.execute("SELECT 1")
 
 
 # --- Bug fix tests ---
+
 
 def test_get_available_drivers_returns_dict():
     """Bug fix: get_available_drivers must be importable and return a dict."""
@@ -138,7 +140,7 @@ def test_get_available_drivers_returns_copy():
 @pytest.mark.asyncio
 async def test_duckdb_explain_plan_returns_plan_text():
     """Bug fix: get_explain_plan must return actual plan text, not the column name."""
-    driver = DuckDBEngine(':memory:')
+    driver = DuckDBEngine(":memory:")
     await driver.connect()
     await driver.execute("CREATE TABLE t (id INTEGER, name VARCHAR)")
     plan = await driver.get_explain_plan("SELECT * FROM t")
@@ -152,14 +154,14 @@ async def test_duckdb_explain_plan_returns_plan_text():
 
 # --- Trino identifier-quoting tests ---
 
+
 @pytest.mark.asyncio
 async def test_trino_get_schemas_quotes_database():
     """Bug fix: get_schemas must send SHOW SCHEMAS FROM \"<db>\" (quoted identifier)."""
     from src.drivers.trino import TrinoEngine
 
     engine = TrinoEngine(
-        host="localhost", port=8080, catalog="hive",
-        schema="default", username="user"
+        host="localhost", port=8080, catalog="hive", schema="default", username="user"
     )
     mock_cursor = MagicMock()
     mock_cursor.fetchall.return_value = [("public",)]
@@ -168,7 +170,7 @@ async def test_trino_get_schemas_quotes_database():
     engine.connection = mock_conn
 
     with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
-        result = await engine.get_schemas("my-catalog")
+        await engine.get_schemas("my-catalog")
 
     executed_sql = mock_cursor.execute.call_args[0][0]
     assert '"my-catalog"' in executed_sql, (
@@ -182,8 +184,7 @@ async def test_trino_get_tables_quotes_database_and_schema():
     from src.drivers.trino import TrinoEngine
 
     engine = TrinoEngine(
-        host="localhost", port=8080, catalog="hive",
-        schema="default", username="user"
+        host="localhost", port=8080, catalog="hive", schema="default", username="user"
     )
     mock_cursor = MagicMock()
     mock_cursor.fetchall.return_value = [("orders",)]
@@ -192,7 +193,7 @@ async def test_trino_get_tables_quotes_database_and_schema():
     engine.connection = mock_conn
 
     with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
-        result = await engine.get_tables("my-catalog", "my-schema")
+        await engine.get_tables("my-catalog", "my-schema")
 
     executed_sql = mock_cursor.execute.call_args[0][0]
     assert '"my-catalog"' in executed_sql, (
@@ -209,8 +210,7 @@ async def test_trino_get_columns_quotes_database_and_parameterises_values():
     from src.drivers.trino import TrinoEngine
 
     engine = TrinoEngine(
-        host="localhost", port=8080, catalog="hive",
-        schema="default", username="user"
+        host="localhost", port=8080, catalog="hive", schema="default", username="user"
     )
     mock_cursor = MagicMock()
     mock_cursor.fetchall.return_value = [("id", "INTEGER")]
@@ -219,7 +219,7 @@ async def test_trino_get_columns_quotes_database_and_parameterises_values():
     engine.connection = mock_conn
 
     with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
-        result = await engine.get_columns("my-catalog", "my-schema", "my-table")
+        await engine.get_columns("my-catalog", "my-schema", "my-table")
 
     executed_sql = mock_cursor.execute.call_args[0][0]
     call_positional_args = mock_cursor.execute.call_args[0]
@@ -243,17 +243,22 @@ async def test_trino_get_columns_quotes_database_and_parameterises_values():
 
 # --- Snowflake identifier-quoting tests ---
 
+
 @pytest.mark.asyncio
 async def test_snowflake_get_schemas_quotes_database():
     """Bug fix: get_schemas must issue USE DATABASE \"<db>\" (quoted identifier)."""
     from src.drivers.snowflake import SnowflakeEngine
 
     engine = SnowflakeEngine(
-        host="account.snowflakecomputing.com", port=443,
-        database="mydb", username="user"
+        host="account.snowflakecomputing.com",
+        port=443,
+        database="mydb",
+        username="user",
     )
     mock_cursor = MagicMock()
-    mock_cursor.fetchall.return_value = [("created_on", "PUBLIC", "mydb", "SCHEMA", "MANAGED ACCESS", "1")]
+    mock_cursor.fetchall.return_value = [
+        ("created_on", "PUBLIC", "mydb", "SCHEMA", "MANAGED ACCESS", "1")
+    ]
     engine._cursor = mock_cursor
 
     with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
@@ -271,8 +276,10 @@ async def test_snowflake_get_tables_quotes_database_and_schema():
     from src.drivers.snowflake import SnowflakeEngine
 
     engine = SnowflakeEngine(
-        host="account.snowflakecomputing.com", port=443,
-        database="mydb", username="user"
+        host="account.snowflakecomputing.com",
+        port=443,
+        database="mydb",
+        username="user",
     )
     mock_cursor = MagicMock()
     mock_cursor.fetchall.return_value = []
@@ -298,11 +305,15 @@ async def test_snowflake_get_columns_quotes_three_part_name():
     from src.drivers.snowflake import SnowflakeEngine
 
     engine = SnowflakeEngine(
-        host="account.snowflakecomputing.com", port=443,
-        database="mydb", username="user"
+        host="account.snowflakecomputing.com",
+        port=443,
+        database="mydb",
+        username="user",
     )
     mock_cursor = MagicMock()
-    mock_cursor.fetchall.return_value = [("id", "NUMBER(38,0)", "COLUMN", "Y", None, "N", None)]
+    mock_cursor.fetchall.return_value = [
+        ("id", "NUMBER(38,0)", "COLUMN", "Y", None, "N", None)
+    ]
     engine._cursor = mock_cursor
 
     with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
@@ -312,4 +323,3 @@ async def test_snowflake_get_columns_quotes_three_part_name():
     assert '"my-db"."my-schema"."my-table"' in executed_sql, (
         f"Expected fully-quoted three-part name, got: {executed_sql}"
     )
-

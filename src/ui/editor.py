@@ -1,4 +1,5 @@
 """The Workspace - SQL editor with syntax highlighting and formatting."""
+
 from typing import Optional
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
@@ -6,8 +7,6 @@ from textual.widgets import TextArea
 from textual.message import Message
 from textual.binding import Binding
 import sqlparse
-from pygments.lexers import SqlLexer
-from pygments.token import Token
 
 
 class WorkspaceEditor(VerticalScroll):
@@ -44,11 +43,7 @@ class WorkspaceEditor(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
-        self.editor = TextArea(
-            language="sql",
-            theme="monokai",
-            id="sql-editor"
-        )
+        self.editor = TextArea(language="sql", theme="monokai", id="sql-editor")
         self.editor.show_line_numbers = True
         yield self.editor
 
@@ -80,7 +75,7 @@ class WorkspaceEditor(VerticalScroll):
                 keyword_case="upper",
                 identifier_case="lower",
                 strip_comments=False,
-                use_space_around_operators=True
+                use_space_around_operators=True,
             )
             self.editor.text = formatted
         except Exception:

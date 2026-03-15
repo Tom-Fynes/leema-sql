@@ -1,11 +1,11 @@
 """Main Leema SQL IDE application."""
+
 from typing import Optional
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Header, Footer, TabbedContent, TabPane, LoadingIndicator
-from textual.worker import Worker, WorkerState
 
 from .ui.sidebar import BurrowSidebar
 from .ui.editor import WorkspaceEditor
@@ -128,16 +128,16 @@ class LeemaApp(App):
         """Open connection dialog (future: implement modal)."""
         # For now, connect to default or first available profile
         if self.config.profiles:
-            profile_name = self.config.default_profile or list(
-                self.config.profiles.keys())[0]
+            profile_name = (
+                self.config.default_profile or list(self.config.profiles.keys())[0]
+            )
             self.connect_to_profile(profile_name)
 
     @work(exclusive=True, thread=True)
     async def connect_to_profile(self, profile_name: str) -> None:
         """Connect to a database profile."""
         if profile_name not in self.config.profiles:
-            self.notify(
-                f"Profile '{profile_name}' not found", severity="error")
+            self.notify(f"Profile '{profile_name}' not found", severity="error")
             return
 
         profile = self.config.profiles[profile_name]
@@ -151,9 +151,7 @@ class LeemaApp(App):
             password = profile.password
             if not password and profile.username:
                 password = self.security.get_password(
-                    profile.engine,
-                    profile.host,
-                    profile.username
+                    profile.engine, profile.host, profile.username
                 )
 
             # Get engine class
@@ -167,7 +165,7 @@ class LeemaApp(App):
                 username=profile.username,
                 password=password,
                 ssl=profile.ssl,
-                **profile.options
+                **profile.options,
             )
 
             # Connect
@@ -207,7 +205,9 @@ class LeemaApp(App):
 
     # ===== Query Execution =====
 
-    def on_workspace_editor_execute_query(self, message: WorkspaceEditor.ExecuteQuery) -> None:
+    def on_workspace_editor_execute_query(
+        self, message: WorkspaceEditor.ExecuteQuery
+    ) -> None:
         """Handle query execution request from editor."""
         if not self._current_engine:
             self.notify("Not connected to any database", severity="error")
@@ -228,8 +228,7 @@ class LeemaApp(App):
         """Execute SQL query asynchronously."""
         try:
             self.call_from_thread(self._show_loading)
-            self.call_from_thread(
-                self._update_results_status, "Executing query...")
+            self.call_from_thread(self._update_results_status, "Executing query...")
 
             # Execute query
             result = await self._current_engine.execute(sql)
@@ -240,7 +239,7 @@ class LeemaApp(App):
                 result.columns,
                 result.rows,
                 result.row_count,
-                result.execution_time
+                result.execution_time,
             )
 
         except Exception as e:
@@ -254,7 +253,8 @@ class LeemaApp(App):
         try:
             self.call_from_thread(self._show_loading)
             self.call_from_thread(
-                self._update_results_status, "Generating execution plan...")
+                self._update_results_status, "Generating execution plan..."
+            )
 
             # Get execution plan
             plan_text = await self._current_engine.get_explain_plan(sql)
@@ -263,7 +263,7 @@ class LeemaApp(App):
             self.call_from_thread(
                 self._show_execution_plan,
                 plan_text,
-                self._current_profile.engine if self._current_profile else "unknown"
+                self._current_profile.engine if self._current_profile else "unknown",
             )
 
             # Switch to plan tab
@@ -274,7 +274,9 @@ class LeemaApp(App):
         finally:
             self.call_from_thread(self._hide_loading)
 
-    def _show_query_results(self, columns: list, rows: list, row_count: int, exec_time: float) -> None:
+    def _show_query_results(
+        self, columns: list, rows: list, row_count: int, exec_time: float
+    ) -> None:
         """Update results console with query data."""
         if self.results:
             self.results.show_results(columns, rows)
@@ -305,10 +307,11 @@ class LeemaApp(App):
 
     # ===== Schema Navigation =====
 
-    def on_burrow_sidebar_schema_selected(self, message: BurrowSidebar.SchemaSelected) -> None:
+    def on_burrow_sidebar_schema_selected(
+        self, message: BurrowSidebar.SchemaSelected
+    ) -> None:
         """Handle schema item selection in sidebar."""
         node_type = message.node_type
-        metadata = message.metadata
 
         if node_type == "table":
             # Insert SELECT statement template
@@ -339,6 +342,7 @@ class LeemaApp(App):
             # Disconnect gracefully using the async close method
             try:
                 import asyncio
+
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     loop.create_task(self._current_engine.close())

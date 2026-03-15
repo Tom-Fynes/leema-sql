@@ -5,7 +5,8 @@ try:
     from trino.exceptions import TrinoUserError, TrinoQueryError
 except ImportError:
     raise ImportError(
-        "trino is not installed. Install with: pip install 'leema-sql[trino]'")
+        "trino is not installed. Install with: pip install 'leema-sql[trino]'"
+    )
 
 from typing import List, Dict, Any, Optional, Tuple
 from src.drivers.base import BaseEngine, QueryResult
@@ -28,7 +29,7 @@ class TrinoEngine(BaseEngine):
         schema: str,
         username: str,
         http_scheme: str = "http",
-        **kwargs
+        **kwargs,
     ):
         """Initialize the Trino engine.
 
@@ -42,13 +43,13 @@ class TrinoEngine(BaseEngine):
             **kwargs: Additional connection parameters (auth, cert, etc.).
         """
         self.connection_params = {
-            'host': host,
-            'port': port,
-            'catalog': catalog,
-            'schema': schema,
-            'user': username,
-            'http_scheme': http_scheme,
-            **kwargs
+            "host": host,
+            "port": port,
+            "catalog": catalog,
+            "schema": schema,
+            "user": username,
+            "http_scheme": http_scheme,
+            **kwargs,
         }
         self.connection = None
         self.catalog = catalog
@@ -68,8 +69,7 @@ class TrinoEngine(BaseEngine):
     async def execute(self, query: str, params: Optional[Tuple] = None) -> QueryResult:
         """Execute a SQL query."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             start_time = time.time()
@@ -83,7 +83,9 @@ class TrinoEngine(BaseEngine):
 
             # Fetch results
             rows = await asyncio.to_thread(cursor.fetchall)
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else []
+            )
             cursor.close()
 
             execution_time = time.time() - start_time
@@ -101,8 +103,7 @@ class TrinoEngine(BaseEngine):
     async def get_schema(self) -> Dict[str, List[Dict[str, Any]]]:
         """Retrieve the Trino catalog schema."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         query = f"""
         SELECT table_schema, table_name
@@ -122,10 +123,12 @@ class TrinoEngine(BaseEngine):
                 if table_schema not in schema:
                     schema[table_schema] = []
 
-                schema[table_schema].append({
-                    'name': table_name,
-                    'columns': []  # Will be loaded lazily
-                })
+                schema[table_schema].append(
+                    {
+                        "name": table_name,
+                        "columns": [],  # Will be loaded lazily
+                    }
+                )
 
             return schema
         except (TrinoUserError, TrinoQueryError) as e:
@@ -136,8 +139,7 @@ class TrinoEngine(BaseEngine):
     async def get_databases(self) -> List[str]:
         """Get list of available catalogs in Trino."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()
@@ -151,8 +153,7 @@ class TrinoEngine(BaseEngine):
     async def get_schemas(self, database: str) -> List[str]:
         """Get list of schemas in a catalog."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()
@@ -166,23 +167,25 @@ class TrinoEngine(BaseEngine):
     async def get_tables(self, database: str, schema: str) -> List[str]:
         """Get list of tables in a schema."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()
-            await asyncio.to_thread(cursor.execute, f'SHOW TABLES FROM "{database}"."{schema}"')
+            await asyncio.to_thread(
+                cursor.execute, f'SHOW TABLES FROM "{database}"."{schema}"'
+            )
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
             return [row[0] for row in rows]
         except Exception as e:
             raise Exception(f"Failed to retrieve tables: {e}")
 
-    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_columns(
+        self, database: str, schema: str, table: str
+    ) -> List[Dict[str, Any]]:
         """Get columns for a specific table."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         query = f"""
         SELECT column_name, data_type
@@ -197,7 +200,7 @@ class TrinoEngine(BaseEngine):
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
 
-            return [{'name': col[0], 'type': col[1]} for col in rows]
+            return [{"name": col[0], "type": col[1]} for col in rows]
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Failed to retrieve columns: {e}")
         except Exception as e:
@@ -206,8 +209,7 @@ class TrinoEngine(BaseEngine):
     async def get_explain_plan(self, query: str) -> str:
         """Get the execution plan in text format."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         explain_query = f"EXPLAIN {query}"
 

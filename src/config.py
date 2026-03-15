@@ -1,4 +1,5 @@
 """Configuration management for Leema."""
+
 import os
 import yaml
 from pathlib import Path
@@ -9,6 +10,7 @@ from dataclasses import dataclass, field, asdict
 @dataclass
 class ConnectionProfile:
     """Database connection profile."""
+
     name: str
     engine: str
     host: str
@@ -50,6 +52,7 @@ class ConnectionProfile:
 @dataclass
 class LeemaConfig:
     """Main Leema configuration."""
+
     profiles: Dict[str, ConnectionProfile] = field(default_factory=dict)
     default_profile: Optional[str] = None
     config_path: Optional[Path] = None
@@ -72,19 +75,19 @@ class LeemaConfig:
         if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {path}")
 
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             data = yaml.safe_load(f) or {}
 
         # Parse profiles
         profiles = {}
-        for name, profile_data in data.get('profiles', {}).items():
-            profile_data['name'] = name
+        for name, profile_data in data.get("profiles", {}).items():
+            profile_data["name"] = name
             profiles[name] = ConnectionProfile(**profile_data)
 
         config = cls(
             profiles=profiles,
-            default_profile=data.get('default_profile'),
-            config_path=path
+            default_profile=data.get("default_profile"),
+            config_path=path,
         )
 
         # Validate configuration
@@ -101,8 +104,9 @@ class LeemaConfig:
         Args:
             config_path: Path to save config. If None, uses stored path or XDG default.
         """
-        path = self._resolve_config_path(
-            config_path) if config_path else self.config_path
+        path = (
+            self._resolve_config_path(config_path) if config_path else self.config_path
+        )
 
         if not path:
             path = self._resolve_config_path(None)
@@ -111,19 +115,16 @@ class LeemaConfig:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         # Convert to dict
-        data = {
-            'default_profile': self.default_profile,
-            'profiles': {}
-        }
+        data = {"default_profile": self.default_profile, "profiles": {}}
 
         for name, profile in self.profiles.items():
             profile_dict = asdict(profile)
-            profile_dict.pop('name')  # Don't duplicate name
-            profile_dict.pop('password', None)  # Never save passwords
-            data['profiles'][name] = profile_dict
+            profile_dict.pop("name")  # Don't duplicate name
+            profile_dict.pop("password", None)  # Never save passwords
+            data["profiles"][name] = profile_dict
 
         # Write YAML
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
         self.config_path = path
@@ -144,8 +145,7 @@ class LeemaConfig:
 
         # Validate default profile exists
         if self.default_profile and self.default_profile not in self.profiles:
-            errors.append(
-                f"Default profile '{self.default_profile}' does not exist")
+            errors.append(f"Default profile '{self.default_profile}' does not exist")
 
         return errors
 
@@ -163,14 +163,14 @@ class LeemaConfig:
             return Path(config_path).expanduser().resolve()
 
         # Use XDG_CONFIG_HOME if set, otherwise ~/.config
-        xdg_config_home = os.environ.get('XDG_CONFIG_HOME')
+        xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
 
         if xdg_config_home:
             config_dir = Path(xdg_config_home)
         else:
-            config_dir = Path.home() / '.config'
+            config_dir = Path.home() / ".config"
 
-        return config_dir / 'leema' / 'config.yaml'
+        return config_dir / "leema" / "config.yaml"
 
     @staticmethod
     def get_default_config_path() -> Path:

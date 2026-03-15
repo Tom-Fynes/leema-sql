@@ -1,4 +1,5 @@
 """Nebula Nights theme for Leema SQL IDE."""
+
 from textual.theme import Theme
 
 NEBULA_NIGHTS = Theme(

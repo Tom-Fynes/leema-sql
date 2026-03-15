@@ -1,7 +1,8 @@
 """The Results Console - DataTable for query results with copy/paste support."""
+
 from typing import Any, List, Optional
 from textual.app import ComposeResult
-from textual.containers import VerticalScroll, Vertical
+from textual.containers import Vertical
 from textual.widgets import DataTable, Static, Label
 from textual.binding import Binding
 import csv
@@ -124,7 +125,7 @@ class ResultsConsole(Vertical):
             # Format as CSV
             output = StringIO()
             # TSV for better paste support
-            writer = csv.writer(output, delimiter='\t')
+            writer = csv.writer(output, delimiter="\t")
             writer.writerow(columns)
             writer.writerow(selected_data)
 
@@ -142,17 +143,19 @@ class ResultsConsole(Vertical):
         try:
             # Try using pyperclip if available
             import pyperclip
+
             pyperclip.copy(text)
         except ImportError:
             # Fallback: write to xclip on Linux
             try:
                 import subprocess
+
                 process = subprocess.Popen(
-                    ['xclip', '-selection', 'clipboard'],
+                    ["xclip", "-selection", "clipboard"],
                     stdin=subprocess.PIPE,
-                    close_fds=True
+                    close_fds=True,
                 )
-                process.communicate(input=text.encode('utf-8'))
+                process.communicate(input=text.encode("utf-8"))
             except Exception:
                 # Last resort: just log it
                 self.app.log(f"Could not copy to clipboard: {text}")

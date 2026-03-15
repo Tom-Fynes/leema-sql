@@ -1,13 +1,14 @@
 """Abstract base class for database engine drivers."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, List, Dict, Optional, Tuple
 
 
 @dataclass
 class QueryResult:
     """Result of a SQL query execution."""
+
     columns: List[str]
     rows: List[Tuple[Any, ...]]
     row_count: int
@@ -86,7 +87,9 @@ class BaseEngine(ABC):
         pass
 
     @abstractmethod
-    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_columns(
+        self, database: str, schema: str, table: str
+    ) -> List[Dict[str, Any]]:
         """Get columns for a specific table (for lazy loading).
 
         Args:

@@ -12,7 +12,7 @@ class DuckDBEngine(BaseEngine):
     DuckDB is synchronous but we wrap it in async methods for consistency.
     """
 
-    def __init__(self, database: str = ':memory:', **kwargs):
+    def __init__(self, database: str = ":memory:", **kwargs):
         """Initialize the DuckDB engine.
 
         Args:
@@ -33,8 +33,7 @@ class DuckDBEngine(BaseEngine):
     async def execute(self, query: str, params: Optional[Tuple] = None) -> QueryResult:
         """Execute a SQL query."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             start_time = time.time()
@@ -44,7 +43,9 @@ class DuckDBEngine(BaseEngine):
                 result = self.connection.execute(query)
 
             rows = result.fetchall()
-            columns = [desc[0] for desc in result.description] if result.description else []
+            columns = (
+                [desc[0] for desc in result.description] if result.description else []
+            )
             execution_time = time.time() - start_time
             return QueryResult(
                 columns=columns,
@@ -58,8 +59,7 @@ class DuckDBEngine(BaseEngine):
     async def get_schema(self) -> Dict[str, List[Dict[str, Any]]]:
         """Retrieve the DuckDB schema."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             tables_result = self.connection.execute(
@@ -74,10 +74,12 @@ class DuckDBEngine(BaseEngine):
                     schema[table_schema] = []
 
                 # Don't load columns immediately - support lazy loading
-                schema[table_schema].append({
-                    'name': table_name,
-                    'columns': []  # Will be loaded lazily
-                })
+                schema[table_schema].append(
+                    {
+                        "name": table_name,
+                        "columns": [],  # Will be loaded lazily
+                    }
+                )
 
             return schema
         except Exception as e:
@@ -86,8 +88,7 @@ class DuckDBEngine(BaseEngine):
     async def get_databases(self) -> List[str]:
         """Get list of available databases (catalogs in DuckDB)."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             rows = self.connection.execute(
@@ -100,8 +101,7 @@ class DuckDBEngine(BaseEngine):
     async def get_schemas(self, database: str) -> List[str]:
         """Get list of schemas in DuckDB."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             rows = self.connection.execute(
@@ -116,42 +116,41 @@ class DuckDBEngine(BaseEngine):
     async def get_tables(self, database: str, schema: str) -> List[str]:
         """Get list of tables in a schema."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             rows = self.connection.execute(
                 "SELECT table_name FROM information_schema.tables "
                 "WHERE table_schema = ? ORDER BY table_name",
-                [schema]
+                [schema],
             ).fetchall()
             return [row[0] for row in rows]
         except Exception as e:
             raise Exception(f"Failed to retrieve tables: {e}")
 
-    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_columns(
+        self, database: str, schema: str, table: str
+    ) -> List[Dict[str, Any]]:
         """Get columns for a specific table."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             columns_result = self.connection.execute(
                 "SELECT column_name, data_type FROM information_schema.columns "
                 "WHERE table_schema = ? AND table_name = ? "
                 "ORDER BY ordinal_position",
-                [schema, table]
+                [schema, table],
             ).fetchall()
 
-            return [{'name': col[0], 'type': col[1]} for col in columns_result]
+            return [{"name": col[0], "type": col[1]} for col in columns_result]
         except Exception as e:
             raise Exception(f"Failed to retrieve columns: {e}")
 
     async def get_explain_plan(self, query: str) -> str:
         """Get the execution plan."""
         if not self.connection:
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             result = self.connection.execute(f"EXPLAIN {query}").fetchall()
@@ -172,4 +171,3 @@ class DuckDBEngine(BaseEngine):
     def is_connected(self) -> bool:
         """Check if connected to DuckDB."""
         return self.connection is not None
-

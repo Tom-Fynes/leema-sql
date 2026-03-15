@@ -6,7 +6,8 @@ try:
     from mysql.connector.connection import MySQLConnection
 except ImportError:
     raise ImportError(
-        "mysql-connector-python is not installed. Install with: pip install 'leema-sql[mysql]'")
+        "mysql-connector-python is not installed. Install with: pip install 'leema-sql[mysql]'"
+    )
 
 from typing import List, Dict, Any, Optional, Tuple
 from src.drivers.base import BaseEngine, QueryResult
@@ -21,7 +22,15 @@ class MySQLEngine(BaseEngine):
     to prevent blocking the UI.
     """
 
-    def __init__(self, host: str, port: int, database: str, username: str, password: str, **kwargs):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        database: str,
+        username: str,
+        password: str,
+        **kwargs,
+    ):
         """Initialize the MySQL engine.
 
         Args:
@@ -33,12 +42,12 @@ class MySQLEngine(BaseEngine):
             **kwargs: Additional connection parameters (ssl_ca, ssl_cert, etc.).
         """
         self.connection_params = {
-            'host': host,
-            'port': port,
-            'database': database,
-            'user': username,
-            'password': password,
-            **kwargs
+            "host": host,
+            "port": port,
+            "database": database,
+            "user": username,
+            "password": password,
+            **kwargs,
         }
         self.connection: Optional[MySQLConnection] = None
 
@@ -47,10 +56,7 @@ class MySQLEngine(BaseEngine):
         try:
             params = {**self.connection_params, **kwargs}
             # Run synchronous connect in thread pool
-            self.connection = await asyncio.to_thread(
-                mysql.connector.connect,
-                **params
-            )
+            self.connection = await asyncio.to_thread(mysql.connector.connect, **params)
         except MySQLError as e:
             raise ConnectionError(f"Failed to connect to MySQL: {e}")
         except Exception as e:
@@ -59,8 +65,7 @@ class MySQLEngine(BaseEngine):
     async def execute(self, query: str, params: Optional[Tuple] = None) -> QueryResult:
         """Execute a SQL query."""
         if not self.connection or not self.connection.is_connected():
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             start_time = time.time()
@@ -71,7 +76,9 @@ class MySQLEngine(BaseEngine):
 
             # Fetch results
             rows = await asyncio.to_thread(cursor.fetchall)
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else []
+            )
             cursor.close()
 
             execution_time = time.time() - start_time
@@ -89,8 +96,7 @@ class MySQLEngine(BaseEngine):
     async def get_schema(self) -> Dict[str, List[Dict[str, Any]]]:
         """Retrieve the MySQL database schema."""
         if not self.connection or not self.connection.is_connected():
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         query = """
         SELECT TABLE_SCHEMA, TABLE_NAME
@@ -110,10 +116,12 @@ class MySQLEngine(BaseEngine):
                 if table_schema not in schema:
                     schema[table_schema] = []
 
-                schema[table_schema].append({
-                    'name': table_name,
-                    'columns': []  # Will be loaded lazily
-                })
+                schema[table_schema].append(
+                    {
+                        "name": table_name,
+                        "columns": [],  # Will be loaded lazily
+                    }
+                )
 
             return schema
         except MySQLError as e:
@@ -124,8 +132,7 @@ class MySQLEngine(BaseEngine):
     async def get_databases(self) -> List[str]:
         """Get list of available databases."""
         if not self.connection or not self.connection.is_connected():
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()
@@ -139,8 +146,7 @@ class MySQLEngine(BaseEngine):
     async def get_schemas(self, database: str) -> List[str]:
         """Get list of schemas (databases) available in MySQL."""
         if not self.connection or not self.connection.is_connected():
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()
@@ -148,7 +154,7 @@ class MySQLEngine(BaseEngine):
                 cursor.execute,
                 "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA "
                 "WHERE SCHEMA_NAME NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys') "
-                "ORDER BY SCHEMA_NAME"
+                "ORDER BY SCHEMA_NAME",
             )
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
@@ -159,8 +165,7 @@ class MySQLEngine(BaseEngine):
     async def get_tables(self, database: str, schema: str) -> List[str]:
         """Get list of tables in a schema."""
         if not self.connection or not self.connection.is_connected():
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         try:
             cursor = self.connection.cursor()
@@ -168,7 +173,7 @@ class MySQLEngine(BaseEngine):
                 cursor.execute,
                 "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
                 "WHERE TABLE_SCHEMA = %s ORDER BY TABLE_NAME",
-                (schema,)
+                (schema,),
             )
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
@@ -176,11 +181,12 @@ class MySQLEngine(BaseEngine):
         except Exception as e:
             raise Exception(f"Failed to retrieve tables: {e}")
 
-    async def get_columns(self, database: str, schema: str, table: str) -> List[Dict[str, Any]]:
+    async def get_columns(
+        self, database: str, schema: str, table: str
+    ) -> List[Dict[str, Any]]:
         """Get columns for a specific table."""
         if not self.connection or not self.connection.is_connected():
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         query = """
         SELECT COLUMN_NAME, DATA_TYPE
@@ -195,7 +201,7 @@ class MySQLEngine(BaseEngine):
             rows = await asyncio.to_thread(cursor.fetchall)
             cursor.close()
 
-            return [{'name': col[0], 'type': col[1]} for col in rows]
+            return [{"name": col[0], "type": col[1]} for col in rows]
         except MySQLError as e:
             raise Exception(f"Failed to retrieve columns: {e}")
         except Exception as e:
@@ -204,8 +210,7 @@ class MySQLEngine(BaseEngine):
     async def get_explain_plan(self, query: str) -> str:
         """Get the execution plan in JSON format."""
         if not self.connection or not self.connection.is_connected():
-            raise RuntimeError(
-                "Not connected to database. Call connect() first.")
+            raise RuntimeError("Not connected to database. Call connect() first.")
 
         explain_query = f"EXPLAIN FORMAT=JSON {query}"
 
