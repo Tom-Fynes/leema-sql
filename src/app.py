@@ -30,39 +30,40 @@ class LeemaApp(App):
         height: 1fr;
     }
 
+    /* Narrow left pane so the editor/results area gets more horizontal room */
     #left-pane {
-        width: 30%;
-        min-width: 20;
+        width: 22%;
+        min-width: 22;
     }
 
-    /* Override the sidebar's default width so it fills the left pane exactly */
-    BurrowSidebar {
-        width: 1fr;
-    }
-
-    #right-pane {
-        width: 70%;
-    }
-
-    #connection-bar {
-        height: 3;
+    /* Connection selector box at the top of the left pane */
+    #connection-box {
+        height: 5;
         background: $panel;
         padding: 0 1;
-        align: right middle;
     }
 
-    #connection-bar Label {
-        margin: 0 1 0 0;
+    #connection-box Label {
+        height: 1;
         color: $text-muted;
     }
 
-    #connection-bar Select {
-        width: 40;
+    #connection-box Select {
+        width: 1fr;
         height: 3;
     }
 
-    /* Use fr units so both panes share the remaining space after the
-       fixed-height connection bar, with no overflow or clipping */
+    /* Sidebar fills all remaining height in the left pane */
+    BurrowSidebar {
+        width: 1fr;
+        height: 1fr;
+    }
+
+    /* Right pane takes all remaining horizontal space */
+    #right-pane {
+        width: 1fr;
+    }
+
     #editor-pane {
         height: 3fr;
     }
@@ -111,16 +112,11 @@ class LeemaApp(App):
 
         with Container(id="main-container"):
             with Horizontal():
-                # Left Pane: The Burrow (Sidebar)
+                # Left Pane: Connection box + The Burrow (Sidebar)
                 with Vertical(id="left-pane"):
-                    self.sidebar = BurrowSidebar()
-                    yield self.sidebar
-
-                # Right Pane: Connection Bar + Editor + Results
-                with Vertical(id="right-pane"):
-                    # Connection switcher bar
-                    with Horizontal(id="connection-bar"):
-                        yield Label("Connection:")
+                    # Connection selector at the top of the left pane
+                    with Vertical(id="connection-box"):
+                        yield Label("Connection")
                         profile_options = [
                             (name, name) for name in self.config.profiles
                         ]
@@ -137,6 +133,12 @@ class LeemaApp(App):
                         )
                         yield self.connection_select
 
+                    # Schema browser below the connection box
+                    self.sidebar = BurrowSidebar()
+                    yield self.sidebar
+
+                # Right Pane: Editor + Results
+                with Vertical(id="right-pane"):
                     # Top: The Workspace (Editor)
                     with Container(id="editor-pane"):
                         self.editor = WorkspaceEditor()
@@ -307,16 +309,16 @@ class LeemaApp(App):
 
             # Get execution plan
             plan_text = await self._current_engine.get_explain_plan(sql)
+            engine_type = (
+                self._current_profile.engine if self._current_profile else "unknown"
+            )
 
-            # Switch to plan tab first so ExecutionPlanViewer is mounted
-            # before show_plan is called (TabbedContent lazily mounts panes)
-            self.call_from_thread(self._switch_to_plan_tab)
-
-            # Show plan in viewer
+            # Switch tab then populate the tree after the next refresh cycle.
+            # call_after_refresh guarantees Textual has fully processed the
+            # tab-activation message (including any deferred DOM work) before
+            # show_plan is called.
             self.call_from_thread(
-                self._show_execution_plan,
-                plan_text,
-                self._current_profile.engine if self._current_profile else "unknown",
+                self._switch_to_plan_tab_and_show, plan_text, engine_type
             )
 
         except Exception as e:
@@ -345,10 +347,16 @@ class LeemaApp(App):
         if self.plan_viewer:
             self.plan_viewer.show_plan(plan_text, engine_type)
 
-    def _switch_to_plan_tab(self) -> None:
-        """Switch to execution plan tab."""
+    def _switch_to_plan_tab_and_show(self, plan_text: str, engine_type: str) -> None:
+        """Switch to execution plan tab then populate after the next refresh.
+
+        Using call_after_refresh ensures Textual has fully processed the
+        tab-activation reactive change (and any deferred DOM updates) before
+        we try to populate the execution plan tree.
+        """
         tabbed = self.query_one(TabbedContent)
         tabbed.active = "plan-tab"
+        self.call_after_refresh(self._show_execution_plan, plan_text, engine_type)
 
     def _update_results_status(self, message: str) -> None:
         """Update results status bar."""
