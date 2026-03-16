@@ -2,14 +2,14 @@
 
 from typing import Optional
 from textual.app import ComposeResult
-from textual.containers import VerticalScroll
-from textual.widgets import TextArea
+from textual.containers import Vertical, Horizontal
+from textual.widgets import TextArea, Button
 from textual.message import Message
 from textual.binding import Binding
 import sqlparse
 
 
-class WorkspaceEditor(VerticalScroll):
+class WorkspaceEditor(Vertical):
     """SQL editor with syntax highlighting and formatting."""
 
     DEFAULT_CSS = """
@@ -17,7 +17,19 @@ class WorkspaceEditor(VerticalScroll):
         border: solid $primary;
         background: $surface;
     }
-    
+
+    WorkspaceEditor #editor-toolbar {
+        height: 3;
+        background: $panel;
+        padding: 0 1;
+        align: left middle;
+    }
+
+    WorkspaceEditor #editor-toolbar Button {
+        margin: 0 1 0 0;
+        min-width: 18;
+    }
+
     WorkspaceEditor TextArea {
         width: 1fr;
         height: 1fr;
@@ -43,12 +55,25 @@ class WorkspaceEditor(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
+        with Horizontal(id="editor-toolbar"):
+            yield Button("▶ Execute SQL", id="btn-execute-all", variant="success")
+            yield Button("▶ Execute Selected", id="btn-execute-sel", variant="primary")
+            yield Button("✦ Format SQL", id="btn-format-sql")
         self.editor = TextArea(language="sql", theme="monokai", id="sql-editor")
         self.editor.show_line_numbers = True
         yield self.editor
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle toolbar button presses."""
+        if event.button.id == "btn-execute-all":
+            self.action_execute_all()
+        elif event.button.id == "btn-execute-sel":
+            self.action_execute_selected()
+        elif event.button.id == "btn-format-sql":
+            self.action_format_sql()
+
     def action_execute_query(self) -> None:
-        """Execute the selected text or entire buffer."""
+        """Execute the selected text or entire buffer (keyboard shortcut)."""
         if not self.editor:
             return
 
@@ -58,6 +83,27 @@ class WorkspaceEditor(VerticalScroll):
 
         if sql.strip():
             self.post_message(self.ExecuteQuery(sql))
+
+    def action_execute_all(self) -> None:
+        """Execute the entire buffer."""
+        if not self.editor:
+            return
+
+        sql = self.editor.text
+        if sql.strip():
+            self.post_message(self.ExecuteQuery(sql))
+
+    def action_execute_selected(self) -> None:
+        """Execute selected text only."""
+        if not self.editor:
+            return
+
+        selected = self.editor.selected_text
+        selected_stripped = selected.strip() if selected else ""
+        if selected_stripped:
+            self.post_message(self.ExecuteQuery(selected_stripped))
+        else:
+            self.notify("No text selected", severity="warning")
 
     def action_format_sql(self) -> None:
         """Format SQL using sqlparse."""

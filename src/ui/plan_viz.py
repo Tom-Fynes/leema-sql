@@ -66,6 +66,9 @@ class ExecutionPlanViewer(Vertical):
         except Exception as e:
             self._plan_tree.root.add_leaf(f"❌ Parse error: {str(e)}")
 
+        # Expand the root so populated child nodes are visible
+        self._plan_tree.root.expand()
+
     def _parse_postgres_plan(self, plan_text: str) -> None:
         """Parse PostgreSQL JSON explain output."""
         try:

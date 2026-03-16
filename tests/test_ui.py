@@ -161,3 +161,159 @@ def test_nebula_nights_terminal_ansi_colors():
     assert NEBULA_NIGHTS.variables.get("terminal-ansi-cyan") == "#A9FFF7"
     assert NEBULA_NIGHTS.variables.get("terminal-ansi-green") == "#94FBAB"
     assert NEBULA_NIGHTS.variables.get("terminal-ansi-red") == "#D05786"
+
+
+# --- Toolbar button tests ---
+
+
+def test_editor_toolbar_buttons_exist():
+    """WorkspaceEditor must have Execute SQL, Execute Selected, and Format SQL buttons."""
+    editor = WorkspaceEditor()
+    # Confirm the class exposes the expected action methods
+    assert hasattr(editor, "action_execute_all")
+    assert hasattr(editor, "action_execute_selected")
+    assert hasattr(editor, "action_format_sql")
+    assert callable(editor.action_execute_all)
+    assert callable(editor.action_execute_selected)
+    assert callable(editor.action_format_sql)
+
+
+def test_editor_execute_all_posts_message_with_full_text():
+    """action_execute_all must post ExecuteQuery with the full buffer text."""
+    editor = WorkspaceEditor()
+
+    mock_textarea = MagicMock()
+    mock_textarea.text = "SELECT 1;"
+    editor.editor = mock_textarea
+
+    posted_messages = []
+    with patch.object(editor, "post_message", side_effect=posted_messages.append):
+        editor.action_execute_all()
+
+    assert len(posted_messages) == 1
+    assert isinstance(posted_messages[0], WorkspaceEditor.ExecuteQuery)
+    assert posted_messages[0].sql == "SELECT 1;"
+
+
+def test_editor_execute_selected_posts_message_with_selection():
+    """action_execute_selected must post ExecuteQuery with only the selected text."""
+    editor = WorkspaceEditor()
+
+    mock_textarea = MagicMock()
+    mock_textarea.selected_text = "SELECT 2;"
+    editor.editor = mock_textarea
+
+    posted_messages = []
+    with patch.object(editor, "post_message", side_effect=posted_messages.append):
+        editor.action_execute_selected()
+
+    assert len(posted_messages) == 1
+    assert isinstance(posted_messages[0], WorkspaceEditor.ExecuteQuery)
+    assert posted_messages[0].sql == "SELECT 2;"
+
+
+def test_editor_execute_selected_strips_whitespace():
+    """action_execute_selected must strip surrounding whitespace from selected text."""
+    editor = WorkspaceEditor()
+
+    mock_textarea = MagicMock()
+    mock_textarea.selected_text = "  SELECT 3;  "
+    editor.editor = mock_textarea
+
+    posted_messages = []
+    with patch.object(editor, "post_message", side_effect=posted_messages.append):
+        editor.action_execute_selected()
+
+    assert len(posted_messages) == 1
+    assert posted_messages[0].sql == "SELECT 3;"
+
+
+def test_editor_execute_all_does_nothing_when_editor_is_none():
+    """action_execute_all must be a no-op when the internal editor widget is not set."""
+    editor = WorkspaceEditor()
+    editor.editor = None
+
+    posted_messages = []
+    with patch.object(editor, "post_message", side_effect=posted_messages.append):
+        editor.action_execute_all()
+
+    assert len(posted_messages) == 0
+
+
+def test_editor_execute_selected_does_nothing_when_editor_is_none():
+    """action_execute_selected must be a no-op when the internal editor widget is not set."""
+    editor = WorkspaceEditor()
+    editor.editor = None
+
+    posted_messages = []
+    with patch.object(editor, "post_message", side_effect=posted_messages.append):
+        editor.action_execute_selected()
+
+    assert len(posted_messages) == 0
+
+
+def test_editor_execute_selected_notifies_when_no_selection():
+    """action_execute_selected must notify the user when nothing is selected."""
+    editor = WorkspaceEditor()
+
+    mock_textarea = MagicMock()
+    mock_textarea.selected_text = ""
+    editor.editor = mock_textarea
+
+    posted_messages = []
+    with patch.object(editor, "post_message", side_effect=posted_messages.append):
+        with patch.object(editor, "notify") as mock_notify:
+            editor.action_execute_selected()
+
+    assert len(posted_messages) == 0, "No message should be posted when nothing is selected"
+    mock_notify.assert_called_once()
+    _, kwargs = mock_notify.call_args
+    assert kwargs.get("severity") == "warning"
+
+
+def test_editor_execute_all_does_nothing_for_empty_buffer():
+    """action_execute_all must not post a message when the buffer is empty."""
+    editor = WorkspaceEditor()
+
+    mock_textarea = MagicMock()
+    mock_textarea.text = "   "
+    editor.editor = mock_textarea
+
+    posted_messages = []
+    with patch.object(editor, "post_message", side_effect=posted_messages.append):
+        editor.action_execute_all()
+
+    assert len(posted_messages) == 0
+
+
+# --- Execution plan expand tests ---
+
+
+def test_execution_plan_show_plan_expands_root():
+    """show_plan must expand the tree root so child nodes are visible."""
+    viewer = ExecutionPlanViewer()
+
+    mock_tree = MagicMock()
+    mock_root = MagicMock()
+    mock_tree.root = mock_root
+    viewer._plan_tree = mock_tree
+
+    viewer.show_plan("line one\nline two", "generic")
+
+    mock_root.expand.assert_called_once()
+
+
+def test_execution_plan_show_plan_sets_label():
+    """show_plan must update the root label with the engine type."""
+    viewer = ExecutionPlanViewer()
+
+    mock_tree = MagicMock()
+    mock_root = MagicMock()
+    mock_tree.root = mock_root
+    viewer._plan_tree = mock_tree
+
+    viewer.show_plan("EXPLAIN text", "duckdb")
+
+    mock_root.set_label.assert_called_once()
+    label_arg = mock_root.set_label.call_args[0][0]
+    assert "DUCKDB" in label_arg

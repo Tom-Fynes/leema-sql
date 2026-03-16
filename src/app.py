@@ -5,7 +5,7 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, TabbedContent, TabPane, LoadingIndicator
+from textual.widgets import Header, Footer, TabbedContent, TabPane, LoadingIndicator, Select, Label
 
 from .ui.sidebar import BurrowSidebar
 from .ui.editor import WorkspaceEditor
@@ -24,29 +24,46 @@ class LeemaApp(App):
     Screen {
         background: $surface;
     }
-    
+
     #main-container {
         width: 1fr;
         height: 1fr;
     }
-    
+
     #left-pane {
         width: 30%;
         min-width: 20;
     }
-    
+
     #right-pane {
         width: 70%;
     }
-    
+
+    #connection-bar {
+        height: 3;
+        background: $panel;
+        padding: 0 1;
+        align: left middle;
+    }
+
+    #connection-bar Label {
+        margin: 0 1 0 0;
+        color: $text-muted;
+    }
+
+    #connection-bar Select {
+        width: 30;
+        height: 1;
+    }
+
     #editor-pane {
-        height: 50%;
+        height: 55%;
     }
-    
+
     #results-pane {
-        height: 50%;
+        height: 45%;
     }
-    
+
     LoadingIndicator {
         dock: bottom;
         height: 1;
@@ -79,6 +96,7 @@ class LeemaApp(App):
         self.results: Optional[ResultsConsole] = None
         self.plan_viewer: Optional[ExecutionPlanViewer] = None
         self.loading_indicator: Optional[LoadingIndicator] = None
+        self.connection_select: Optional[Select] = None
 
     def compose(self) -> ComposeResult:
         """Create the application layout."""
@@ -91,8 +109,27 @@ class LeemaApp(App):
                     self.sidebar = BurrowSidebar()
                     yield self.sidebar
 
-                # Right Pane: Editor + Results
+                # Right Pane: Connection Bar + Editor + Results
                 with Vertical(id="right-pane"):
+                    # Connection switcher bar
+                    with Horizontal(id="connection-bar"):
+                        yield Label("Connection:")
+                        profile_options = [
+                            (name, name) for name in self.config.profiles
+                        ]
+                        default = self.config.default_profile
+                        initial_value = (
+                            default if default in self.config.profiles else Select.BLANK
+                        )
+                        self.connection_select = Select(
+                            options=profile_options,
+                            id="connection-select",
+                            prompt="Select connection…",
+                            allow_blank=True,
+                            value=initial_value,
+                        )
+                        yield self.connection_select
+
                     # Top: The Workspace (Editor)
                     with Container(id="editor-pane"):
                         self.editor = WorkspaceEditor()
@@ -124,14 +161,15 @@ class LeemaApp(App):
 
     # ===== Connection Management =====
 
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Handle connection profile selection change."""
+        if event.select.id == "connection-select" and event.value is not Select.BLANK:
+            self.connect_to_profile(str(event.value))
+
     def action_open_connection(self) -> None:
-        """Open connection dialog (future: implement modal)."""
-        # For now, connect to default or first available profile
-        if self.config.profiles:
-            profile_name = (
-                self.config.default_profile or list(self.config.profiles.keys())[0]
-            )
-            self.connect_to_profile(profile_name)
+        """Focus the connection selector to allow profile switching."""
+        if self.connection_select:
+            self.connection_select.focus()
 
     @work(exclusive=True, thread=True)
     async def connect_to_profile(self, profile_name: str) -> None:
@@ -183,6 +221,10 @@ class LeemaApp(App):
         """Handle successful connection."""
         self.notify(f"✓ Connected to {profile.name}", severity="information")
         self.sub_title = f"Connected: {profile.name} ({profile.engine})"
+
+        # Keep the connection select in sync
+        if self.connection_select:
+            self.connection_select.value = profile.name
 
         # Update sidebar with new engine
         if self.sidebar:
