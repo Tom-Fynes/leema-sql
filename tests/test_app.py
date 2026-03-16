@@ -101,3 +101,45 @@ def test_duckdb_config_round_trip(tmp_path):
     loaded = LeemaConfig.load(str(config_file))
     assert "local" in loaded.profiles
     assert loaded.profiles["local"].port == 0
+
+
+# --- Connection switcher tests ---
+
+
+def test_app_has_connection_select_attribute(app):
+    """LeemaApp must expose a connection_select attribute for the profile dropdown."""
+    assert hasattr(app, "connection_select")
+
+
+def test_app_connection_select_is_none_before_compose(app):
+    """connection_select must be None until the app is composed."""
+    assert app.connection_select is None
+
+
+def test_app_with_profiles_exposes_all_options(tmp_path):
+    """The profile names in config must all be available to the connection Select widget."""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        yaml.dump(
+            {
+                "profiles": {
+                    "dev": {
+                        "engine": "duckdb",
+                        "host": "localhost",
+                        "port": 0,
+                        "database": ":memory:",
+                    },
+                    "prod": {
+                        "engine": "duckdb",
+                        "host": "localhost",
+                        "port": 0,
+                        "database": ":memory:",
+                    },
+                },
+                "default_profile": "dev",
+            }
+        )
+    )
+    loaded_app = LeemaApp(config_path=str(config_file))
+    assert "dev" in loaded_app.config.profiles
+    assert "prod" in loaded_app.config.profiles

@@ -5,7 +5,7 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, TabbedContent, TabPane, LoadingIndicator
+from textual.widgets import Header, Footer, TabbedContent, TabPane, LoadingIndicator, Select, Label
 
 from .ui.sidebar import BurrowSidebar
 from .ui.editor import WorkspaceEditor
@@ -24,29 +24,54 @@ class LeemaApp(App):
     Screen {
         background: $surface;
     }
-    
+
     #main-container {
         width: 1fr;
         height: 1fr;
     }
-    
+
+    /* Narrow left pane so the editor/results area gets more horizontal room */
     #left-pane {
-        width: 30%;
-        min-width: 20;
+        width: 22%;
+        min-width: 22;
     }
-    
+
+    /* Connection selector box at the top of the left pane */
+    #connection-box {
+        height: 5;
+        background: $panel;
+        padding: 0 1;
+    }
+
+    #connection-box Label {
+        height: 1;
+        color: $text-muted;
+    }
+
+    #connection-box Select {
+        width: 1fr;
+        height: 3;
+    }
+
+    /* Sidebar fills all remaining height in the left pane */
+    BurrowSidebar {
+        width: 1fr;
+        height: 1fr;
+    }
+
+    /* Right pane takes all remaining horizontal space */
     #right-pane {
-        width: 70%;
+        width: 1fr;
     }
-    
+
     #editor-pane {
-        height: 50%;
+        height: 3fr;
     }
-    
+
     #results-pane {
-        height: 50%;
+        height: 2fr;
     }
-    
+
     LoadingIndicator {
         dock: bottom;
         height: 1;
@@ -79,6 +104,7 @@ class LeemaApp(App):
         self.results: Optional[ResultsConsole] = None
         self.plan_viewer: Optional[ExecutionPlanViewer] = None
         self.loading_indicator: Optional[LoadingIndicator] = None
+        self.connection_select: Optional[Select] = None
 
     def compose(self) -> ComposeResult:
         """Create the application layout."""
@@ -86,8 +112,28 @@ class LeemaApp(App):
 
         with Container(id="main-container"):
             with Horizontal():
-                # Left Pane: The Burrow (Sidebar)
+                # Left Pane: Connection box + The Burrow (Sidebar)
                 with Vertical(id="left-pane"):
+                    # Connection selector at the top of the left pane
+                    with Vertical(id="connection-box"):
+                        yield Label("Connection")
+                        profile_options = [
+                            (name, name) for name in self.config.profiles
+                        ]
+                        default = self.config.default_profile
+                        initial_value = (
+                            default if default in self.config.profiles else Select.BLANK
+                        )
+                        self.connection_select = Select(
+                            options=profile_options,
+                            id="connection-select",
+                            prompt="Select connection…",
+                            allow_blank=True,
+                            value=initial_value,
+                        )
+                        yield self.connection_select
+
+                    # Schema browser below the connection box
                     self.sidebar = BurrowSidebar()
                     yield self.sidebar
 
@@ -124,14 +170,15 @@ class LeemaApp(App):
 
     # ===== Connection Management =====
 
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Handle connection profile selection change."""
+        if event.select.id == "connection-select" and event.value is not Select.BLANK:
+            self.connect_to_profile(str(event.value))
+
     def action_open_connection(self) -> None:
-        """Open connection dialog (future: implement modal)."""
-        # For now, connect to default or first available profile
-        if self.config.profiles:
-            profile_name = (
-                self.config.default_profile or list(self.config.profiles.keys())[0]
-            )
-            self.connect_to_profile(profile_name)
+        """Focus the connection selector to allow profile switching."""
+        if self.connection_select:
+            self.connection_select.focus()
 
     @work(exclusive=True, thread=True)
     async def connect_to_profile(self, profile_name: str) -> None:
@@ -183,6 +230,10 @@ class LeemaApp(App):
         """Handle successful connection."""
         self.notify(f"✓ Connected to {profile.name}", severity="information")
         self.sub_title = f"Connected: {profile.name} ({profile.engine})"
+
+        # Keep the connection select in sync
+        if self.connection_select:
+            self.connection_select.value = profile.name
 
         # Update sidebar with new engine
         if self.sidebar:
@@ -258,16 +309,17 @@ class LeemaApp(App):
 
             # Get execution plan
             plan_text = await self._current_engine.get_explain_plan(sql)
-
-            # Show plan in viewer
-            self.call_from_thread(
-                self._show_execution_plan,
-                plan_text,
-                self._current_profile.engine if self._current_profile else "unknown",
+            engine_type = (
+                self._current_profile.engine if self._current_profile else "unknown"
             )
 
-            # Switch to plan tab
-            self.call_from_thread(self._switch_to_plan_tab)
+            # Switch tab then populate the tree after the next refresh cycle.
+            # call_after_refresh guarantees Textual has fully processed the
+            # tab-activation message (including any deferred DOM work) before
+            # show_plan is called.
+            self.call_from_thread(
+                self._switch_to_plan_tab_and_show, plan_text, engine_type
+            )
 
         except Exception as e:
             self.call_from_thread(self._show_query_error, str(e))
@@ -295,10 +347,16 @@ class LeemaApp(App):
         if self.plan_viewer:
             self.plan_viewer.show_plan(plan_text, engine_type)
 
-    def _switch_to_plan_tab(self) -> None:
-        """Switch to execution plan tab."""
+    def _switch_to_plan_tab_and_show(self, plan_text: str, engine_type: str) -> None:
+        """Switch to execution plan tab then populate after the next refresh.
+
+        Using call_after_refresh ensures Textual has fully processed the
+        tab-activation reactive change (and any deferred DOM updates) before
+        we try to populate the execution plan tree.
+        """
         tabbed = self.query_one(TabbedContent)
         tabbed.active = "plan-tab"
+        self.call_after_refresh(self._show_execution_plan, plan_text, engine_type)
 
     def _update_results_status(self, message: str) -> None:
         """Update results status bar."""
