@@ -169,7 +169,14 @@ def _add_profile_wizard(config: LeemaConfig) -> None:
 
     host = Prompt.ask("Host", default="localhost")
     port = Prompt.ask("Port", default=_get_default_port(engine))
-    database = Prompt.ask("Database name")
+    if engine == "trino":
+        database = Prompt.ask(
+            "Catalog name (optional, leave blank for Trino default)", default=""
+        )
+        schema = Prompt.ask("Default schema", default="default")
+    else:
+        database = Prompt.ask("Database name")
+        schema = None
     username = Prompt.ask("Username", default="")
 
     # Password handling
@@ -185,11 +192,42 @@ def _add_profile_wizard(config: LeemaConfig) -> None:
     use_ssl = Confirm.ask("Use SSL/TLS?", default=False)
     ssl_config = {}
     if use_ssl:
-        ssl_config["sslmode"] = Prompt.ask(
-            "SSL mode",
-            choices=["require", "verify-ca", "verify-full"],
-            default="require",
-        )
+        if engine == "trino":
+            ssl_config["http_scheme"] = "https"
+            use_cert = Confirm.ask(
+                "Use client certificate authentication?", default=False
+            )
+            if use_cert:
+                cert_path = Prompt.ask("Client certificate path (PEM file)")
+                key_path = Prompt.ask("Client key path (PEM file)")
+                if cert_path and key_path:
+                    ssl_config["cert_path"] = cert_path
+                    ssl_config["key_path"] = key_path
+                elif cert_path or key_path:
+                    console.print(
+                        "[yellow]Warning: both a certificate and a key file are required "
+                        "for certificate authentication. Neither has been saved.[/yellow]"
+                    )
+            verify_server = Confirm.ask("Verify server certificate?", default=True)
+            if verify_server:
+                ca_bundle = Prompt.ask(
+                    "CA bundle path (leave blank to use system default)", default=""
+                )
+                ssl_config["verify"] = ca_bundle if ca_bundle else True
+            else:
+                ssl_config["verify"] = False
+        else:
+            ssl_config["sslmode"] = Prompt.ask(
+                "SSL mode",
+                choices=["require", "verify-ca", "verify-full"],
+                default="require",
+            )
+
+    # Build options: merge schema (Trino) and SSL settings
+    options: dict = {}
+    if schema is not None:
+        options["schema"] = schema
+    options.update(ssl_config)
 
     # Create profile
     profile = ConnectionProfile(
@@ -201,7 +239,7 @@ def _add_profile_wizard(config: LeemaConfig) -> None:
         username=username,
         password=None,  # Don't store in config
         ssl=use_ssl,
-        options=ssl_config,
+        options=options,
     )
 
     config.profiles[name] = profile

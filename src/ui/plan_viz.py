@@ -51,7 +51,9 @@ class ExecutionPlanViewer(Vertical):
     def on_mount(self) -> None:
         """Flush any plan that arrived before the widget was mounted."""
         if self._pending_plan_text is not None:
-            self._render_plan(self._pending_plan_text, self._pending_engine_type or "unknown")
+            self._render_plan(
+                self._pending_plan_text, self._pending_engine_type or "unknown"
+            )
             self._pending_plan_text = None
             self._pending_engine_type = None
 

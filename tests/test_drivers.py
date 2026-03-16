@@ -241,6 +241,154 @@ async def test_trino_get_columns_quotes_database_and_parameterises_values():
     )
 
 
+# --- Trino constructor / connection-parameter tests ---
+
+
+def test_trino_accepts_database_alias_for_catalog():
+    """Bug fix: TrinoEngine must accept 'database' as an alias for 'catalog'."""
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(host="localhost", port=8080, database="hive", username="user")
+    assert engine.connection_params["catalog"] == "hive"
+    assert engine.catalog == "hive"
+
+
+def test_trino_catalog_takes_priority_over_database():
+    """When both catalog and database are supplied, catalog wins."""
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(
+        host="localhost",
+        port=8080,
+        catalog="explicit_catalog",
+        database="ignored",
+        username="user",
+    )
+    assert engine.connection_params["catalog"] == "explicit_catalog"
+
+
+def test_trino_schema_defaults_to_default():
+    """When schema is omitted, connection_params must include schema='default'."""
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(host="localhost", port=8080, database="hive", username="user")
+    assert engine.connection_params["schema"] == "default"
+
+
+def test_trino_password_creates_basic_authentication():
+    """Bug fix: passing password= must create a BasicAuthentication auth object."""
+    from src.drivers.trino import TrinoEngine
+    from trino.auth import BasicAuthentication
+
+    engine = TrinoEngine(
+        host="localhost",
+        port=8080,
+        database="hive",
+        username="user",
+        password="secret",
+    )
+    assert "auth" in engine.connection_params
+    assert isinstance(engine.connection_params["auth"], BasicAuthentication)
+    # password must NOT appear as a raw key
+    assert "password" not in engine.connection_params
+
+
+def test_trino_ssl_true_upgrades_http_scheme_to_https():
+    """Bug fix: passing ssl=True must set http_scheme to 'https'."""
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(
+        host="localhost",
+        port=8080,
+        database="hive",
+        username="user",
+        ssl=True,
+    )
+    assert engine.connection_params["http_scheme"] == "https"
+    # ssl flag must NOT be forwarded to the trino client
+    assert "ssl" not in engine.connection_params
+
+
+def test_trino_cert_path_and_key_path_create_certificate_authentication():
+    """cert_path + key_path must create a CertificateAuthentication auth object."""
+    from src.drivers.trino import TrinoEngine
+    from trino.auth import CertificateAuthentication
+
+    engine = TrinoEngine(
+        host="localhost",
+        port=8080,
+        database="hive",
+        username="user",
+        ssl=True,
+        cert_path="/path/to/cert.pem",
+        key_path="/path/to/key.pem",
+    )
+    assert "auth" in engine.connection_params
+    assert isinstance(engine.connection_params["auth"], CertificateAuthentication)
+    # raw cert_path / key_path must NOT be forwarded to the trino client
+    assert "cert_path" not in engine.connection_params
+    assert "key_path" not in engine.connection_params
+
+
+def test_trino_cert_auth_takes_priority_over_password():
+    """Certificate auth must take priority when both password and cert paths are given."""
+    from src.drivers.trino import TrinoEngine
+    from trino.auth import CertificateAuthentication
+
+    engine = TrinoEngine(
+        host="localhost",
+        port=8080,
+        database="hive",
+        username="user",
+        password="secret",
+        ssl=True,
+        cert_path="/path/to/cert.pem",
+        key_path="/path/to/key.pem",
+    )
+    assert isinstance(engine.connection_params["auth"], CertificateAuthentication)
+
+
+def test_trino_password_auto_upgrades_http_scheme_to_https():
+    """Password (BasicAuthentication) must auto-upgrade http_scheme to 'https'.
+
+    Trino requires HTTPS for password authentication.  Even when ssl=False is
+    set in the connection profile, if a password is supplied the engine must
+    upgrade to HTTPS so the connection succeeds.
+    """
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(
+        host="localhost",
+        port=8080,
+        database="hive",
+        username="user",
+        password="secret",
+        ssl=False,
+    )
+    assert engine.connection_params["http_scheme"] == "https"
+
+
+@pytest.mark.asyncio
+async def test_trino_execute_raises_clear_error_on_https_mismatch():
+    """A '400 plain HTTP request sent to HTTPS port' error must surface as a
+    ConnectionError with an actionable 'Set ssl: true' hint."""
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(host="localhost", port=8080, database="hive", username="user")
+    mock_cursor = MagicMock()
+    mock_cursor.execute.side_effect = Exception(
+        "error 400: b'<html>\\r\\n<head><title>400 The plain HTTP request was "
+        "sent to HTTPS port</title></head>'"
+    )
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    engine.connection = mock_conn
+
+    with pytest.raises(ConnectionError, match="ssl.*true|Set ssl"):
+        with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+            await engine.execute("SELECT 1")
+
+
 # --- Snowflake identifier-quoting tests ---
 
 

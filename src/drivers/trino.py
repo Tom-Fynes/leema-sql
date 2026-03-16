@@ -2,6 +2,7 @@
 
 try:
     from trino.dbapi import connect
+    from trino.auth import BasicAuthentication, CertificateAuthentication
     from trino.exceptions import TrinoUserError, TrinoQueryError
 except ImportError:
     raise ImportError(
@@ -25,9 +26,10 @@ class TrinoEngine(BaseEngine):
         self,
         host: str,
         port: int,
-        catalog: str,
-        schema: str,
-        username: str,
+        catalog: str = "",
+        schema: str = "default",
+        username: str = "",
+        database: str = "",
         http_scheme: str = "http",
         **kwargs,
     ):
@@ -36,24 +38,92 @@ class TrinoEngine(BaseEngine):
         Args:
             host: Trino coordinator host.
             port: Trino coordinator port (default 8080).
-            catalog: Catalog name (e.g., 'hive', 'postgresql').
-            schema: Schema/database name.
-            username: Username.
-            http_scheme: 'http' or 'https'.
-            **kwargs: Additional connection parameters (auth, cert, etc.).
+            catalog: Catalog name (e.g., 'hive', 'postgresql').  When omitted
+                Trino will use its own default catalog.
+            schema: Default schema name.  Defaults to ``"default"``.
+            username: Username.  May be omitted for Trino clusters that do not
+                require authentication.
+            database: Alias for *catalog*.  Used by the generic engine factory
+                in ``app.py`` which passes ``database=`` for all engines.
+                *catalog* takes priority when both are supplied.
+            http_scheme: ``'http'`` or ``'https'``.  Setting ``ssl=True`` in
+                **kwargs** will automatically upgrade this to ``'https'``.
+            **kwargs: Additional connection parameters forwarded to the trino
+                client (e.g., ``verify``, ``request_timeout``).  The following
+                special keys are consumed here and not forwarded:
+
+                * ``password`` – converted to a
+                  :class:`~trino.auth.BasicAuthentication` object.
+                * ``ssl`` – ``True`` upgrades *http_scheme* to ``'https'``.
+                * ``cert_path`` / ``key_path`` – converted to a
+                  :class:`~trino.auth.CertificateAuthentication` object.
+                  Certificate auth takes priority over password auth.
         """
-        self.connection_params = {
+        # 'database' is accepted as an alias for 'catalog' so that the generic
+        # engine factory in app.py (which always passes database=...) works for
+        # Trino without requiring a Trino-specific code path there.
+        resolved_catalog = catalog or database
+
+        # Handle password → BasicAuthentication
+        password = kwargs.pop("password", None)
+
+        # Handle ssl flag → upgrade http_scheme to https
+        ssl = kwargs.pop("ssl", False)
+        if ssl and http_scheme == "http":
+            http_scheme = "https"
+
+        # Handle certificate-based authentication
+        cert_path = kwargs.pop("cert_path", None)
+        key_path = kwargs.pop("key_path", None)
+
+        self.connection_params: Dict[str, Any] = {
             "host": host,
             "port": port,
-            "catalog": catalog,
-            "schema": schema,
             "user": username,
             "http_scheme": http_scheme,
-            **kwargs,
         }
+
+        if resolved_catalog:
+            self.connection_params["catalog"] = resolved_catalog
+
+        if schema:
+            self.connection_params["schema"] = schema
+
+        # Certificate auth takes priority over password auth
+        if cert_path and key_path:
+            self.connection_params["auth"] = CertificateAuthentication(
+                cert_path, key_path
+            )
+        elif password:
+            self.connection_params["auth"] = BasicAuthentication(username, password)
+            # Trino requires HTTPS for password (Basic) authentication.
+            # Silently upgrade http_scheme so the connection works out of the box
+            # even when ssl=False was set in the profile.
+            self.connection_params["http_scheme"] = "https"
+
+        # Pass remaining kwargs (e.g., verify) directly to the trino client
+        self.connection_params.update(kwargs)
+
         self.connection = None
-        self.catalog = catalog
+        self.catalog = resolved_catalog
         self.schema = schema
+
+    @staticmethod
+    def _check_https_error(e: Exception) -> None:
+        """Re-raise with an actionable hint when the server requires HTTPS.
+
+        The Trino Python client is lazy — the first HTTP request is made on
+        ``cursor.execute()``, not on ``connect()``.  When the coordinator is
+        configured for TLS and the client sends a plain-HTTP request, the
+        server responds with ``400 Bad Request: The plain HTTP request was
+        sent to HTTPS port``.  This helper converts that confusing low-level
+        message into clear guidance for the user.
+        """
+        if "plain HTTP request was sent to HTTPS" in str(e):
+            raise ConnectionError(
+                "The Trino coordinator requires HTTPS. "
+                "Set 'ssl: true' in your connection profile."
+            ) from e
 
     async def connect(self, **kwargs) -> None:
         """Establish a connection to Trino."""
@@ -98,6 +168,7 @@ class TrinoEngine(BaseEngine):
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Query execution failed: {e}")
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Unexpected error during query execution: {e}")
 
     async def get_schema(self) -> Dict[str, List[Dict[str, Any]]]:
@@ -134,6 +205,7 @@ class TrinoEngine(BaseEngine):
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Failed to retrieve schema: {e}")
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Unexpected error retrieving schema: {e}")
 
     async def get_databases(self) -> List[str]:
@@ -148,6 +220,7 @@ class TrinoEngine(BaseEngine):
             cursor.close()
             return [row[0] for row in rows]
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Failed to retrieve databases: {e}")
 
     async def get_schemas(self, database: str) -> List[str]:
@@ -162,6 +235,7 @@ class TrinoEngine(BaseEngine):
             cursor.close()
             return [row[0] for row in rows]
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Failed to retrieve schemas: {e}")
 
     async def get_tables(self, database: str, schema: str) -> List[str]:
@@ -178,6 +252,7 @@ class TrinoEngine(BaseEngine):
             cursor.close()
             return [row[0] for row in rows]
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Failed to retrieve tables: {e}")
 
     async def get_columns(
@@ -204,6 +279,7 @@ class TrinoEngine(BaseEngine):
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Failed to retrieve columns: {e}")
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Unexpected error retrieving columns: {e}")
 
     async def get_explain_plan(self, query: str) -> str:
@@ -224,6 +300,7 @@ class TrinoEngine(BaseEngine):
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Failed to get execution plan: {e}")
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Unexpected error getting execution plan: {e}")
 
     async def close(self) -> None:
