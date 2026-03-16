@@ -5,7 +5,15 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, TabbedContent, TabPane, LoadingIndicator, Select, Label
+from textual.widgets import (
+    Header,
+    Footer,
+    TabbedContent,
+    TabPane,
+    LoadingIndicator,
+    Select,
+    Label,
+)
 
 from .ui.sidebar import BurrowSidebar
 from .ui.editor import WorkspaceEditor

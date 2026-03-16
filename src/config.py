@@ -62,7 +62,9 @@ class LeemaConfig:
     config_path: Optional[Path] = None
 
     @classmethod
-    def load(cls, config_path: Optional[str] = None, strict: bool = True) -> "LeemaConfig":
+    def load(
+        cls, config_path: Optional[str] = None, strict: bool = True
+    ) -> "LeemaConfig":
         """Load configuration from file.
 
         Args:

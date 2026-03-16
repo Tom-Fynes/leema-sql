@@ -265,7 +265,9 @@ def test_editor_execute_selected_notifies_when_no_selection():
         with patch.object(editor, "notify") as mock_notify:
             editor.action_execute_selected()
 
-    assert len(posted_messages) == 0, "No message should be posted when nothing is selected"
+    assert len(posted_messages) == 0, (
+        "No message should be posted when nothing is selected"
+    )
     mock_notify.assert_called_once()
     _, kwargs = mock_notify.call_args
     assert kwargs.get("severity") == "warning"

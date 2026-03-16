@@ -163,7 +163,9 @@ def test_save_raises_for_invalid_config(tmp_path):
     with pytest.raises(ValueError, match="validation failed"):
         config.save(str(config_file))
 
-    assert not config_file.exists(), "Config file must not be written when validation fails"
+    assert not config_file.exists(), (
+        "Config file must not be written when validation fails"
+    )
 
 
 def test_load_strict_false_returns_invalid_config(tmp_path):
