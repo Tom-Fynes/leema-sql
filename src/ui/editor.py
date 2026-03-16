@@ -27,7 +27,16 @@ class WorkspaceEditor(Vertical):
 
     WorkspaceEditor #editor-toolbar Button {
         margin: 0 1 0 0;
-        min-width: 18;
+        min-width: 16;
+        height: 3;
+        background: $boost;
+        color: $foreground;
+        border: none;
+    }
+
+    WorkspaceEditor #editor-toolbar Button:hover {
+        background: $accent;
+        color: $background;
     }
 
     WorkspaceEditor TextArea {
@@ -56,8 +65,8 @@ class WorkspaceEditor(Vertical):
     def compose(self) -> ComposeResult:
         """Create child widgets."""
         with Horizontal(id="editor-toolbar"):
-            yield Button("▶ Execute SQL", id="btn-execute-all", variant="success")
-            yield Button("▶ Execute Selected", id="btn-execute-sel", variant="primary")
+            yield Button("▶ Execute SQL", id="btn-execute-all")
+            yield Button("▶ Execute Selected", id="btn-execute-sel")
             yield Button("✦ Format SQL", id="btn-format-sql")
         self.editor = TextArea(language="sql", theme="monokai", id="sql-editor")
         self.editor.show_line_numbers = True

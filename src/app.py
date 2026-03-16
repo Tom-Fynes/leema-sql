@@ -58,7 +58,7 @@ class LeemaApp(App):
 
     #connection-bar Select {
         width: 30;
-        height: 1;
+        height: 3;
     }
 
     /* Use fr units so both panes share the remaining space after the
