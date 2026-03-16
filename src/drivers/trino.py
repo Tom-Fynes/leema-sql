@@ -96,6 +96,10 @@ class TrinoEngine(BaseEngine):
             )
         elif password:
             self.connection_params["auth"] = BasicAuthentication(username, password)
+            # Trino requires HTTPS for password (Basic) authentication.
+            # Silently upgrade http_scheme so the connection works out of the box
+            # even when ssl=False was set in the profile.
+            self.connection_params["http_scheme"] = "https"
 
         # Pass remaining kwargs (e.g., verify) directly to the trino client
         self.connection_params.update(kwargs)
@@ -103,6 +107,23 @@ class TrinoEngine(BaseEngine):
         self.connection = None
         self.catalog = resolved_catalog
         self.schema = schema
+
+    @staticmethod
+    def _check_https_error(e: Exception) -> None:
+        """Re-raise with an actionable hint when the server requires HTTPS.
+
+        The Trino Python client is lazy — the first HTTP request is made on
+        ``cursor.execute()``, not on ``connect()``.  When the coordinator is
+        configured for TLS and the client sends a plain-HTTP request, the
+        server responds with ``400 Bad Request: The plain HTTP request was
+        sent to HTTPS port``.  This helper converts that confusing low-level
+        message into clear guidance for the user.
+        """
+        if "plain HTTP request was sent to HTTPS" in str(e):
+            raise ConnectionError(
+                "The Trino coordinator requires HTTPS. "
+                "Set 'ssl: true' in your connection profile."
+            ) from e
 
     async def connect(self, **kwargs) -> None:
         """Establish a connection to Trino."""
@@ -147,6 +168,7 @@ class TrinoEngine(BaseEngine):
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Query execution failed: {e}")
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Unexpected error during query execution: {e}")
 
     async def get_schema(self) -> Dict[str, List[Dict[str, Any]]]:
@@ -183,6 +205,7 @@ class TrinoEngine(BaseEngine):
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Failed to retrieve schema: {e}")
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Unexpected error retrieving schema: {e}")
 
     async def get_databases(self) -> List[str]:
@@ -197,6 +220,7 @@ class TrinoEngine(BaseEngine):
             cursor.close()
             return [row[0] for row in rows]
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Failed to retrieve databases: {e}")
 
     async def get_schemas(self, database: str) -> List[str]:
@@ -211,6 +235,7 @@ class TrinoEngine(BaseEngine):
             cursor.close()
             return [row[0] for row in rows]
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Failed to retrieve schemas: {e}")
 
     async def get_tables(self, database: str, schema: str) -> List[str]:
@@ -227,6 +252,7 @@ class TrinoEngine(BaseEngine):
             cursor.close()
             return [row[0] for row in rows]
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Failed to retrieve tables: {e}")
 
     async def get_columns(
@@ -253,6 +279,7 @@ class TrinoEngine(BaseEngine):
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Failed to retrieve columns: {e}")
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Unexpected error retrieving columns: {e}")
 
     async def get_explain_plan(self, query: str) -> str:
@@ -273,6 +300,7 @@ class TrinoEngine(BaseEngine):
         except (TrinoUserError, TrinoQueryError) as e:
             raise Exception(f"Failed to get execution plan: {e}")
         except Exception as e:
+            self._check_https_error(e)
             raise Exception(f"Unexpected error getting execution plan: {e}")
 
     async def close(self) -> None:

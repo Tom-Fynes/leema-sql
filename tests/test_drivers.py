@@ -348,6 +348,47 @@ def test_trino_cert_auth_takes_priority_over_password():
     assert isinstance(engine.connection_params["auth"], CertificateAuthentication)
 
 
+def test_trino_password_auto_upgrades_http_scheme_to_https():
+    """Password (BasicAuthentication) must auto-upgrade http_scheme to 'https'.
+
+    Trino requires HTTPS for password authentication.  Even when ssl=False is
+    set in the connection profile, if a password is supplied the engine must
+    upgrade to HTTPS so the connection succeeds.
+    """
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(
+        host="localhost",
+        port=8080,
+        database="hive",
+        username="user",
+        password="secret",
+        ssl=False,
+    )
+    assert engine.connection_params["http_scheme"] == "https"
+
+
+@pytest.mark.asyncio
+async def test_trino_execute_raises_clear_error_on_https_mismatch():
+    """A '400 plain HTTP request sent to HTTPS port' error must surface as a
+    ConnectionError with an actionable 'Set ssl: true' hint."""
+    from src.drivers.trino import TrinoEngine
+
+    engine = TrinoEngine(host="localhost", port=8080, database="hive", username="user")
+    mock_cursor = MagicMock()
+    mock_cursor.execute.side_effect = Exception(
+        "error 400: b'<html>\\r\\n<head><title>400 The plain HTTP request was "
+        "sent to HTTPS port</title></head>'"
+    )
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    engine.connection = mock_conn
+
+    with pytest.raises(ConnectionError, match="ssl.*true|Set ssl"):
+        with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+            await engine.execute("SELECT 1")
+
+
 # --- Snowflake identifier-quoting tests ---
 
 
