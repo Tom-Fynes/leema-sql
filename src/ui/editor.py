@@ -6,7 +6,7 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import TextArea, Button
 from textual.message import Message
 from textual.binding import Binding
-import sqlparse
+import sqlglot
 
 
 class WorkspaceEditor(Vertical):
@@ -115,7 +115,7 @@ class WorkspaceEditor(Vertical):
             self.notify("No text selected", severity="warning")
 
     def action_format_sql(self) -> None:
-        """Format SQL using sqlparse."""
+        """Format SQL using sqlglot."""
         if not self.editor:
             return
 
@@ -124,14 +124,8 @@ class WorkspaceEditor(Vertical):
             return
 
         try:
-            formatted = sqlparse.format(
-                current_text,
-                reindent=True,
-                keyword_case="upper",
-                identifier_case="lower",
-                strip_comments=False,
-                use_space_around_operators=True,
-            )
+            statements = sqlglot.transpile(current_text, pretty=True)
+            formatted = "\n\n".join(statements)
             self.editor.text = formatted
         except Exception:
             self.notify("Could not format SQL", severity="warning")

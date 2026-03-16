@@ -77,7 +77,7 @@ def test_column_nullable_display_with_nullable_false():
 
 
 def test_format_sql_notifies_on_failure():
-    """Bug fix: action_format_sql must call notify() when sqlparse raises, not silently pass."""
+    """Bug fix: action_format_sql must call notify() when sqlglot raises, not silently pass."""
     editor = WorkspaceEditor()
 
     # Attach a mock text area with non-empty text so formatting is attempted
@@ -85,7 +85,7 @@ def test_format_sql_notifies_on_failure():
     mock_textarea.text = "SELECT *** INVALID"
     editor.editor = mock_textarea
 
-    with patch("sqlparse.format", side_effect=Exception("parse error")):
+    with patch("sqlglot.transpile", side_effect=Exception("parse error")):
         with patch.object(editor, "notify") as mock_notify:
             editor.action_format_sql()
 
