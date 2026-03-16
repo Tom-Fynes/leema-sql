@@ -290,7 +290,7 @@ def test_editor_execute_all_does_nothing_for_empty_buffer():
 
 
 def test_execution_plan_show_plan_expands_root():
-    """show_plan must expand the tree root so child nodes are visible."""
+    """show_plan must expand_all on the tree root so all child nodes are visible."""
     viewer = ExecutionPlanViewer()
 
     mock_tree = MagicMock()
@@ -300,7 +300,7 @@ def test_execution_plan_show_plan_expands_root():
 
     viewer.show_plan("line one\nline two", "generic")
 
-    mock_root.expand.assert_called_once()
+    mock_root.expand_all.assert_called_once()
 
 
 def test_execution_plan_show_plan_sets_label():
@@ -317,3 +317,37 @@ def test_execution_plan_show_plan_sets_label():
     mock_root.set_label.assert_called_once()
     label_arg = mock_root.set_label.call_args[0][0]
     assert "DUCKDB" in label_arg
+
+
+def test_execution_plan_show_plan_queues_when_not_mounted():
+    """show_plan before widget is mounted must store the plan for later display."""
+    viewer = ExecutionPlanViewer()
+    # _plan_tree is None until the widget is composed/mounted
+    assert viewer._plan_tree is None
+
+    viewer.show_plan("SELECT 1 plan text", "duckdb")
+
+    # Plan must be queued, not discarded
+    assert viewer._pending_plan_text == "SELECT 1 plan text"
+    assert viewer._pending_engine_type == "duckdb"
+
+
+def test_execution_plan_on_mount_flushes_pending_plan():
+    """on_mount must render and clear any pending plan stored before mount."""
+    viewer = ExecutionPlanViewer()
+
+    # Pre-load a pending plan (simulating show_plan called before mount)
+    viewer._pending_plan_text = "plan line"
+    viewer._pending_engine_type = "generic"
+
+    # Simulate mount by attaching a mock tree and calling on_mount
+    mock_tree = MagicMock()
+    mock_root = MagicMock()
+    mock_tree.root = mock_root
+    viewer._plan_tree = mock_tree
+
+    viewer.on_mount()
+
+    mock_tree.clear.assert_called_once()
+    assert viewer._pending_plan_text is None
+    assert viewer._pending_engine_type is None

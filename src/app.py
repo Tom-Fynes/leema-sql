@@ -48,7 +48,7 @@ class LeemaApp(App):
         height: 3;
         background: $panel;
         padding: 0 1;
-        align: left middle;
+        align: right middle;
     }
 
     #connection-bar Label {
@@ -57,7 +57,7 @@ class LeemaApp(App):
     }
 
     #connection-bar Select {
-        width: 30;
+        width: 40;
         height: 3;
     }
 
@@ -308,15 +308,16 @@ class LeemaApp(App):
             # Get execution plan
             plan_text = await self._current_engine.get_explain_plan(sql)
 
+            # Switch to plan tab first so ExecutionPlanViewer is mounted
+            # before show_plan is called (TabbedContent lazily mounts panes)
+            self.call_from_thread(self._switch_to_plan_tab)
+
             # Show plan in viewer
             self.call_from_thread(
                 self._show_execution_plan,
                 plan_text,
                 self._current_profile.engine if self._current_profile else "unknown",
             )
-
-            # Switch to plan tab
-            self.call_from_thread(self._switch_to_plan_tab)
 
         except Exception as e:
             self.call_from_thread(self._show_query_error, str(e))

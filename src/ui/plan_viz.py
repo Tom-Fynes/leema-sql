@@ -34,6 +34,9 @@ class ExecutionPlanViewer(Vertical):
         super().__init__(*args, **kwargs)
         self._plan_tree: Optional[Tree] = None
         self.header_widget: Optional[Static] = None
+        # Pending plan to show once the widget is mounted (lazy-tab scenario)
+        self._pending_plan_text: Optional[str] = None
+        self._pending_engine_type: Optional[str] = None
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -45,11 +48,24 @@ class ExecutionPlanViewer(Vertical):
         self._plan_tree.show_guides = True
         yield self._plan_tree
 
+    def on_mount(self) -> None:
+        """Flush any plan that arrived before the widget was mounted."""
+        if self._pending_plan_text is not None:
+            self._render_plan(self._pending_plan_text, self._pending_engine_type or "unknown")
+            self._pending_plan_text = None
+            self._pending_engine_type = None
+
     def show_plan(self, plan_text: str, engine_type: str) -> None:
         """Parse and display execution plan."""
-        if not self._plan_tree:
+        if self._plan_tree is None:
+            # Widget not yet mounted (lazy TabPane); store for on_mount
+            self._pending_plan_text = plan_text
+            self._pending_engine_type = engine_type
             return
+        self._render_plan(plan_text, engine_type)
 
+    def _render_plan(self, plan_text: str, engine_type: str) -> None:
+        """Internal: populate the tree from plan_text."""
         self._plan_tree.clear()
         self._plan_tree.root.set_label(f"🔍 {engine_type.upper()} Execution Plan")
 
@@ -66,8 +82,8 @@ class ExecutionPlanViewer(Vertical):
         except Exception as e:
             self._plan_tree.root.add_leaf(f"❌ Parse error: {str(e)}")
 
-        # Expand the root so populated child nodes are visible
-        self._plan_tree.root.expand()
+        # Expand root and all child nodes so the full plan is visible
+        self._plan_tree.root.expand_all()
 
     def _parse_postgres_plan(self, plan_text: str) -> None:
         """Parse PostgreSQL JSON explain output."""
@@ -111,22 +127,16 @@ class ExecutionPlanViewer(Vertical):
                 self._plan_tree.root.add_leaf(line.strip())
 
     def _parse_duckdb_plan(self, plan_text: str) -> None:
-        """Parse DuckDB execution plan."""
-        lines = plan_text.split("\n")
-        current_node = self._plan_tree.root
+        """Parse DuckDB execution plan.
 
-        for line in lines:
-            if not line.strip():
-                continue
-
-            # DuckDB uses indentation to show hierarchy
-            indent_level = len(line) - len(line.lstrip())
-
-            # Simple tree construction based on indentation
-            if indent_level == 0:
-                current_node = self._plan_tree.root.add(line.strip())
-            else:
-                current_node.add_leaf(line.strip())
+        DuckDB EXPLAIN output uses box-drawing characters (┌ │ └) with no
+        leading indentation, so every line is at the same level.  Render each
+        non-blank line as a flat leaf under the root to preserve the visual
+        ASCII-art tree exactly as DuckDB emits it.
+        """
+        for line in plan_text.split("\n"):
+            if line.strip():
+                self._plan_tree.root.add_leaf(line.strip())
 
     def _parse_generic_plan(self, plan_text: str) -> None:
         """Parse generic text execution plan."""
