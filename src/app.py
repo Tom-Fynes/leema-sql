@@ -35,6 +35,11 @@ class LeemaApp(App):
         min-width: 20;
     }
 
+    /* Override the sidebar's default width so it fills the left pane exactly */
+    BurrowSidebar {
+        width: 1fr;
+    }
+
     #right-pane {
         width: 70%;
     }
@@ -56,12 +61,14 @@ class LeemaApp(App):
         height: 1;
     }
 
+    /* Use fr units so both panes share the remaining space after the
+       fixed-height connection bar, with no overflow or clipping */
     #editor-pane {
-        height: 55%;
+        height: 3fr;
     }
 
     #results-pane {
-        height: 45%;
+        height: 2fr;
     }
 
     LoadingIndicator {
