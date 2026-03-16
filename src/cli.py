@@ -96,6 +96,12 @@ def configure(
     except FileNotFoundError:
         leema_config = LeemaConfig()
         console.print("[yellow]Creating new configuration[/yellow]\n")
+    except ValueError as e:
+        console.print(f"[yellow]Warning: {e}[/yellow]\n")
+        console.print(
+            "[yellow]Loading configuration for editing so you can fix these issues.[/yellow]\n"
+        )
+        leema_config = LeemaConfig.load(config_path, strict=False)
 
     # Main menu
     while True:
@@ -123,11 +129,17 @@ def configure(
         elif choice == "5":
             _set_default_profile(leema_config)
         elif choice == "6":
-            leema_config.save(config_path)
-            console.print(
-                f"\n[green]✓ Configuration saved to {leema_config.config_path}[/green]"
-            )
-            break
+            try:
+                leema_config.save(config_path)
+                console.print(
+                    f"\n[green]✓ Configuration saved to {leema_config.config_path}[/green]"
+                )
+                break
+            except ValueError as e:
+                console.print(f"\n[red]Cannot save: {e}[/red]")
+                console.print(
+                    "[yellow]Please fix the errors above before saving.[/yellow]"
+                )
         elif choice == "7":
             console.print("[yellow]Exiting without saving[/yellow]")
             break
@@ -307,6 +319,48 @@ def _get_default_port(engine: str) -> str:
         "duckdb": "0",
     }
     return ports.get(engine, "5432")
+
+
+@app.command()
+def remove_config(
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Path to configuration file to remove",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Skip confirmation prompt",
+    ),
+) -> None:
+    """Remove the Leema configuration file.
+
+    Use this command to delete a misconfigured or corrupted config file so you
+    can start fresh with 'leema configure'.
+    """
+    config_path = str(config) if config else None
+    path = LeemaConfig._resolve_config_path(config_path)
+
+    if not path.exists():
+        console.print(f"[yellow]No configuration file found at {path}[/yellow]")
+        raise typer.Exit(0)
+
+    console.print(f"\n[bold]Configuration file:[/bold] {path}")
+
+    if not force:
+        if not Confirm.ask(
+            "[red]Are you sure you want to remove this configuration?[/red]",
+            default=False,
+        ):
+            console.print("[yellow]Aborted[/yellow]")
+            raise typer.Exit(0)
+
+    path.unlink()
+    console.print(f"[green]✓ Configuration removed: {path}[/green]")
+    console.print("[dim]Run 'leema configure' to create a new configuration.[/dim]\n")
 
 
 @app.command()
