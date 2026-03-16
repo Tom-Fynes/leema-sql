@@ -1,7 +1,9 @@
 import pytest
 import yaml
+from typer.testing import CliRunner
 from src.app import LeemaApp
 from src.config import ConnectionProfile, LeemaConfig
+from src.cli import app as cli_app
 
 
 @pytest.fixture
@@ -232,3 +234,51 @@ def test_app_with_profiles_exposes_all_options(tmp_path):
     loaded_app = LeemaApp(config_path=str(config_file))
     assert "dev" in loaded_app.config.profiles
     assert "prod" in loaded_app.config.profiles
+
+
+# --- remove-config command tests ---
+
+
+def test_remove_config_deletes_file(tmp_path):
+    """remove-config must delete the config file when user confirms."""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump({"profiles": {}, "default_profile": None}))
+    assert config_file.exists()
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_app, ["remove-config", "--config", str(config_file), "--force"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert not config_file.exists()
+    assert "Configuration removed" in result.output
+
+
+def test_remove_config_missing_file_exits_cleanly(tmp_path):
+    """remove-config must report gracefully when the config file does not exist."""
+    config_file = tmp_path / "nonexistent.yaml"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_app, ["remove-config", "--config", str(config_file), "--force"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "No configuration file found" in result.output
+
+
+def test_remove_config_aborted_leaves_file(tmp_path):
+    """remove-config must not delete the file when the user declines confirmation."""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump({"profiles": {}, "default_profile": None}))
+
+    runner = CliRunner()
+    # Provide "n" as input to the confirmation prompt
+    result = runner.invoke(
+        cli_app, ["remove-config", "--config", str(config_file)], input="n\n"
+    )
+
+    assert result.exit_code == 0, result.output
+    assert config_file.exists(), "Config file must not be deleted when user aborts"
+    assert "Aborted" in result.output

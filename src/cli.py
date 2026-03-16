@@ -322,6 +322,48 @@ def _get_default_port(engine: str) -> str:
 
 
 @app.command()
+def remove_config(
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Path to configuration file to remove",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Skip confirmation prompt",
+    ),
+) -> None:
+    """Remove the Leema configuration file.
+
+    Use this command to delete a misconfigured or corrupted config file so you
+    can start fresh with 'leema configure'.
+    """
+    config_path = str(config) if config else None
+    path = LeemaConfig._resolve_config_path(config_path)
+
+    if not path.exists():
+        console.print(f"[yellow]No configuration file found at {path}[/yellow]")
+        raise typer.Exit(0)
+
+    console.print(f"\n[bold]Configuration file:[/bold] {path}")
+
+    if not force:
+        if not Confirm.ask(
+            "[red]Are you sure you want to remove this configuration?[/red]",
+            default=False,
+        ):
+            console.print("[yellow]Aborted[/yellow]")
+            raise typer.Exit(0)
+
+    path.unlink()
+    console.print(f"[green]✓ Configuration removed: {path}[/green]")
+    console.print("[dim]Run 'leema configure' to create a new configuration.[/dim]\n")
+
+
+@app.command()
 def list_drivers() -> None:
     """List available database drivers."""
     drivers = get_available_drivers()
