@@ -103,6 +103,95 @@ def test_duckdb_config_round_trip(tmp_path):
     assert loaded.profiles["local"].port == 0
 
 
+def test_trino_profile_without_database_is_valid():
+    """Trino is catalog-based; omitting database must pass validation."""
+    profile = ConnectionProfile(
+        name="trino-test",
+        engine="trino",
+        host="trino.example.com",
+        port=8080,
+        database="",
+    )
+    errors = profile.validate()
+    assert errors == [], f"Expected no errors for trino without database, got: {errors}"
+
+
+def test_trino_profile_with_catalog_is_valid():
+    """Trino profile with a catalog/database value must also pass validation."""
+    profile = ConnectionProfile(
+        name="trino-catalog",
+        engine="trino",
+        host="trino.example.com",
+        port=8080,
+        database="hive",
+    )
+    errors = profile.validate()
+    assert errors == [], f"Expected no errors for trino with catalog, got: {errors}"
+
+
+def test_non_catalog_engine_without_database_is_invalid():
+    """Non-catalog engines (e.g. postgres) must still require a database name."""
+    default_ports = {"postgres": 5432, "mysql": 3306, "mssql": 1433, "snowflake": 443}
+    for engine, port in default_ports.items():
+        profile = ConnectionProfile(
+            name="x",
+            engine=engine,
+            host="localhost",
+            port=port,
+            database="",
+        )
+        errors = profile.validate()
+        assert any("database" in e.lower() for e in errors), (
+            f"Expected database error for engine={engine}, got: {errors}"
+        )
+
+
+def test_save_raises_for_invalid_config(tmp_path):
+    """LeemaConfig.save must raise ValueError when the config fails validation."""
+    config = LeemaConfig()
+    config.profiles["bad"] = ConnectionProfile(
+        name="bad",
+        engine="postgres",
+        host="localhost",
+        port=5432,
+        database="",  # missing required database for postgres
+    )
+    config_file = tmp_path / "config.yaml"
+
+    with pytest.raises(ValueError, match="validation failed"):
+        config.save(str(config_file))
+
+    assert not config_file.exists(), "Config file must not be written when validation fails"
+
+
+def test_load_strict_false_returns_invalid_config(tmp_path):
+    """LeemaConfig.load with strict=False must return the config even if invalid."""
+    invalid_file = tmp_path / "invalid.yaml"
+    invalid_file.write_text(
+        yaml.dump(
+            {
+                "profiles": {
+                    "pg-bad": {
+                        "engine": "postgres",
+                        "host": "localhost",
+                        "port": 5432,
+                        "database": "",  # missing for postgres
+                    },
+                },
+                "default_profile": "pg-bad",
+            }
+        )
+    )
+
+    # strict=True should raise
+    with pytest.raises(ValueError, match="validation failed"):
+        LeemaConfig.load(str(invalid_file), strict=True)
+
+    # strict=False should return the config for editing
+    loaded = LeemaConfig.load(str(invalid_file), strict=False)
+    assert "pg-bad" in loaded.profiles
+
+
 # --- Connection switcher tests ---
 
 

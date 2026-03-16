@@ -96,6 +96,12 @@ def configure(
     except FileNotFoundError:
         leema_config = LeemaConfig()
         console.print("[yellow]Creating new configuration[/yellow]\n")
+    except ValueError as e:
+        console.print(f"[yellow]Warning: {e}[/yellow]\n")
+        console.print(
+            "[yellow]Loading configuration for editing so you can fix these issues.[/yellow]\n"
+        )
+        leema_config = LeemaConfig.load(config_path, strict=False)
 
     # Main menu
     while True:
@@ -123,11 +129,17 @@ def configure(
         elif choice == "5":
             _set_default_profile(leema_config)
         elif choice == "6":
-            leema_config.save(config_path)
-            console.print(
-                f"\n[green]✓ Configuration saved to {leema_config.config_path}[/green]"
-            )
-            break
+            try:
+                leema_config.save(config_path)
+                console.print(
+                    f"\n[green]✓ Configuration saved to {leema_config.config_path}[/green]"
+                )
+                break
+            except ValueError as e:
+                console.print(f"\n[red]Cannot save: {e}[/red]")
+                console.print(
+                    "[yellow]Please fix the errors above before saving.[/yellow]"
+                )
         elif choice == "7":
             console.print("[yellow]Exiting without saving[/yellow]")
             break

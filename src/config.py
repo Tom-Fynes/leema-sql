@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 from dataclasses import dataclass, field, asdict
 
+# Engines where a database/catalog name is not required for a valid connection.
+_ENGINES_WITHOUT_REQUIRED_DATABASE = {"duckdb", "trino"}
+
 
 @dataclass
 class ConnectionProfile:
@@ -43,7 +46,8 @@ class ConnectionProfile:
         elif self.port == 0 and self.engine != "duckdb":
             errors.append(f"Invalid port number: {self.port}")
 
-        if not self.database and self.engine != "duckdb":
+        # Catalog-based engines do not require a database name
+        if not self.database and self.engine not in _ENGINES_WITHOUT_REQUIRED_DATABASE:
             errors.append("Database name is required")
 
         return errors
@@ -58,17 +62,21 @@ class LeemaConfig:
     config_path: Optional[Path] = None
 
     @classmethod
-    def load(cls, config_path: Optional[str] = None) -> "LeemaConfig":
+    def load(cls, config_path: Optional[str] = None, strict: bool = True) -> "LeemaConfig":
         """Load configuration from file.
 
         Args:
             config_path: Path to config file. If None, uses XDG_CONFIG_HOME.
+            strict: If True (default), raise ValueError when validation fails.
+                    If False, return the config even if it contains errors
+                    (useful in the configure wizard so users can fix problems).
 
         Returns:
             LeemaConfig instance.
 
         Raises:
             FileNotFoundError: If config file doesn't exist.
+            ValueError: If strict=True and the configuration fails validation.
         """
         path = cls._resolve_config_path(config_path)
 
@@ -94,7 +102,8 @@ class LeemaConfig:
         errors = config.validate()
         if errors:
             error_msg = "\n".join(errors)
-            raise ValueError(f"Configuration validation failed:\n{error_msg}")
+            if strict:
+                raise ValueError(f"Configuration validation failed:\n{error_msg}")
 
         return config
 
@@ -103,7 +112,15 @@ class LeemaConfig:
 
         Args:
             config_path: Path to save config. If None, uses stored path or XDG default.
+
+        Raises:
+            ValueError: If the configuration fails validation.
         """
+        errors = self.validate()
+        if errors:
+            error_msg = "\n".join(errors)
+            raise ValueError(f"Configuration validation failed:\n{error_msg}")
+
         path = (
             self._resolve_config_path(config_path) if config_path else self.config_path
         )
